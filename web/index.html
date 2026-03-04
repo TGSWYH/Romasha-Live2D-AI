@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>Romasha 桌面视窗</title>
+    <script src="https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/pixi.js@6.5.2/dist/browser/pixi.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display/dist/cubism4.min.js"></script>
+    <style>
+        body { margin: 0; padding: 0; overflow: hidden; background-color: transparent; }
+        canvas { display: block; }
+
+        #chat-bubble {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.95);
+            border: 2px solid #ffb6c1;
+            border-radius: 15px;
+            padding: 12px 18px;
+            box-sizing: border-box;
+            max-width: 350px;
+            width: max-content;
+            max-height: 150px;
+            overflow-y: auto;
+            pointer-events: auto;
+            word-wrap: break-word;
+            line-height: 1.5;
+            font-family: 'Microsoft YaHei', sans-serif;
+            font-size: 14px;
+            color: #333;
+            box-shadow: 0px 4px 15px rgba(0,0,0,0.15);
+            transition: opacity 0.3s;
+            opacity: 0;
+            z-index: 100;
+            transform: translate(-50%, -100%);
+        }
+
+        #chat-bubble::-webkit-scrollbar { width: 6px; }
+        #chat-bubble::-webkit-scrollbar-track { background: transparent; }
+        #chat-bubble::-webkit-scrollbar-thumb { background: #ffb6c1; border-radius: 3px; }
+
+        #chat-bubble::after {
+            content: '';
+            position: absolute;
+            bottom: -10px;
+            left: 50%;
+            margin-left: -10px;
+            border-width: 10px 10px 0;
+            border-style: solid;
+            border-color: rgba(255, 255, 255, 0.95) transparent transparent transparent;
+        }
+
+        #input-container {
+            position: absolute;
+            transform: translate(-50%, 0);
+            z-index: 100;
+            transition: opacity 0.3s;
+            opacity: 0;
+            pointer-events: none;
+        }
+        #input-container.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        #chat-input {
+            background: rgba(0, 0, 0, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            border-radius: 20px;
+            padding: 10px 20px;
+            color: white;
+            font-family: 'Microsoft YaHei', sans-serif;
+            font-size: 14px;
+            outline: none;
+            width: 250px;
+            backdrop-filter: blur(5px);
+        }
+        #chat-input::placeholder { color: rgba(255, 255, 255, 0.6); }
+    </style>
+</head>
+<body oncontextmenu="return false;">
+
+    <div id="chat-bubble"></div>
+    <div id="input-container">
+        <input type="text" id="chat-input" placeholder="对她说点什么... (Enter发送)" autocomplete="off" />
+    </div>
+
+    <canvas id="canvas"></canvas>
+
+    <script>
+        const app = new PIXI.Application({
+            view: document.getElementById('canvas'),
+            autoStart: true,
+            resizeTo: window,
+            transparent: true,
+            backgroundAlpha: 0
+        });
+
+        const chatBubble = document.getElementById('chat-bubble');
+        const inputContainer = document.getElementById('input-container');
+        const chatInput = document.getElementById('chat-input');
+
+        let trackingEnabled = true;
+        let bubbleTimeout = null;
+
+        let touchEnabled = true;
+
+        PIXI.live2d.Live2DModel.from('model/romasha_talk.model3.json').then(model => {
+            app.stage.addChild(model);
+            window.romashaModel = model;
+
+            model.scale.set(0.5);
+            model.y = 200;
+            model.x = window.innerWidth / 2 - model.width / 2;
+
+            model.autoInteract = false;
+            model.interactive = true;
+            model.buttonMode = true;
+
+            app.ticker.add(() => {
+                let bounds = window.romashaModel.getBounds();
+                let centerX = bounds.x + bounds.width / 2;
+
+                let targetBubbleY = bounds.y + 30;
+                if (targetBubbleY - chatBubble.offsetHeight < 10) targetBubbleY = chatBubble.offsetHeight + 10;
+                chatBubble.style.left = centerX + 'px';
+                chatBubble.style.top = targetBubbleY + 'px';
+
+                let bootOffset = bounds.height * 0.45;
+                let targetInputY = bounds.y + bounds.height + bootOffset + 15;
+
+                if (targetInputY > window.innerHeight - 50) targetInputY = window.innerHeight - 50;
+
+                inputContainer.style.left = centerX + 'px';
+                inputContainer.style.top = targetInputY + 'px';
+            });
+
+            window.updateGlobalMouse = function(x, y) {
+                if (trackingEnabled && !isDragging && window.romashaModel) {
+                    window.romashaModel.focus(x, y);
+                }
+            };
+
+            window.toggleTracking = function(state) {
+                trackingEnabled = state;
+                if (!state) model.internalModel.focusController.focus(0, 0);
+            };
+
+            window.toggleTouch = function(state) {
+                touchEnabled = state;
+            };
+
+            window.applySavedState = function(scale, x, y, track, touch) {
+                if (window.romashaModel) {
+                    window.romashaModel.scale.set(scale);
+                    if (x === -1) {
+                        window.romashaModel.x = window.innerWidth / 2 - window.romashaModel.width / 2;
+                    } else {
+                        window.romashaModel.x = x;
+                    }
+                    window.romashaModel.y = y;
+
+                    trackingEnabled = track;
+                    touchEnabled = touch;
+                }
+            };
+
+            model.on('rightdown', (e) => {
+                inputContainer.classList.toggle('active');
+                if (inputContainer.classList.contains('active')) chatInput.focus();
+            });
+
+            chatInput.addEventListener('keypress', function (e) {
+                if (e.key === 'Enter' && this.value.trim() !== '') {
+                    document.title = "CHAT:" + this.value.trim();
+                    this.value = '';
+                    inputContainer.classList.remove('active');
+                }
+            });
+
+            window.showBubble = function(text) {
+                chatBubble.innerHTML = text;
+                chatBubble.style.opacity = 1;
+
+                chatBubble.scrollTop = chatBubble.scrollHeight;
+
+                if(bubbleTimeout) clearTimeout(bubbleTimeout);
+
+                let displayTime = Math.max(1000, text.length * 50);
+                bubbleTimeout = setTimeout(() => {
+                    chatBubble.style.opacity = 0;
+                }, displayTime);
+            };
+
+            let isDragging = false;
+            let downX = 0, downY = 0;
+            let startModelX = 0, startModelY = 0;
+            let downTime = 0;
+
+            model.on('pointerdown', (e) => {
+                if(e.data.button === 0) {
+                    downTime = Date.now();
+                    downX = e.data.originalEvent.screenX;
+                    downY = e.data.originalEvent.screenY;
+                    startModelX = e.data.global.x;
+                    startModelY = e.data.global.y;
+                    isDragging = true;
+                }
+            });
+
+            window.addEventListener('pointerup', (e) => {
+                if(!isDragging) return;
+                isDragging = false;
+
+                if (!touchEnabled) return;
+
+                let upTime = Date.now();
+                let dist = Math.hypot(e.screenX - downX, e.screenY - downY);
+
+                if(dist < 10 && (upTime - downTime) < 300) {
+                    const bounds = model.getBounds();
+                    const relX = (startModelX - bounds.x) / bounds.width;
+                    const relY = (startModelY - bounds.y) / bounds.height;
+
+                    let bodyPart = "unknown";
+
+                    if (relY < 0.22) {
+                        bodyPart = "head";
+                    } else if (relY < 0.33) {
+                        bodyPart = "face";
+                    } else if (relY < 0.53 && relY > 0.43) {
+                        bodyPart = "bust";
+                    } else if (relY < 0.65) {
+                        bodyPart = "belly";
+                    } else if (relY < 0.78) {
+                        if (relX > 0.52 && relX < 0.55) {
+                            bodyPart = "hip";
+                        } else {
+                            bodyPart = "crotch";
+                        }
+                    } else {
+                        bodyPart = "leg";
+                    }
+
+
+                    if (relY > 0.69 && relY < 0.78) {
+                        if (relX < 0.37) bodyPart = "hand_right";
+                        if (relX > 0.57) bodyPart = "hand_left";
+                    }
+
+                    // let debugInfo = `<span style="color:red">X轴: ${relX.toFixed(3)}</span><br>` +
+                                    // `<span style="color:blue">Y轴: ${relY.toFixed(3)}</span><br>` +
+                                    // `<span style="color:#ffb6c1; font-weight:bold;">判定部位: ${bodyPart}</span>`;
+                    // window.showBubble(debugInfo);
+
+                    document.title = "TOUCH:" + bodyPart;
+                }
+            });
+
+            window.addEventListener('pointermove', (e) => {
+                if (isDragging) {
+                    let dx = e.screenX - downX;
+                    let dy = e.screenY - downY;
+                    downX = e.screenX;
+                    downY = e.screenY;
+
+                    model.x += dx;
+                    model.y += dy;
+
+                    document.title = "DRAG_STATE:" + model.scale.x + ":" + model.x + ":" + model.y;
+                }
+            });
+
+            document.addEventListener('wheel', (e) => {
+                if (e.target.closest('#chat-bubble')) return;
+
+                const zoomFactor = e.deltaY > 0 ? 0.95 : 1.05;
+                model.scale.x *= zoomFactor;
+                model.scale.y *= zoomFactor;
+
+                document.title = "WHEEL_STATE:" + model.scale.x + ":" + model.x + ":" + model.y;
+            });
+
+            window.playRomashaMotion = function(group, index) { model.motion(group, index, 3); };
+            window.setRomashaParam = function(paramId, value) { model.internalModel.coreModel.setParameterValueById(paramId, value); };
+
+            window.lastMaskRects = [];
+            setInterval(() => {
+                let currentRects = [];
+
+                if (window.romashaModel) {
+                    let bounds = window.romashaModel.getBounds();
+                    let centerX = bounds.x + bounds.width / 2;
+                    let trimRatio = 0.45;
+                    let responsiveWidth = bounds.width * trimRatio;
+                    let bootOffset = bounds.height * 0.45;
+
+                    let x = Math.floor(centerX - responsiveWidth / 2);
+                    let y = Math.floor(bounds.y - 20);
+                    let w = Math.ceil(responsiveWidth);
+                    let h = Math.ceil(bounds.height + bootOffset + 30);
+                    currentRects.push([x, y, w, h]);
+                }
+
+                const isBubbleVisible = chatBubble.style.opacity > 0.05 && chatBubble.innerHTML !== "" && chatBubble.offsetWidth > 0;
+                if (isBubbleVisible) {
+                    let rect = chatBubble.getBoundingClientRect();
+                    currentRects.push([Math.floor(rect.x - 5), Math.floor(rect.y - 5), Math.ceil(rect.width + 10), Math.ceil(rect.height + 15)]);
+                }
+
+                const isInputActive = inputContainer.classList.contains('active') && inputContainer.offsetWidth > 0;
+                if (isInputActive) {
+                    let rect = inputContainer.getBoundingClientRect();
+                    currentRects.push([Math.floor(rect.x - 5), Math.floor(rect.y - 5), Math.ceil(rect.width + 10), Math.ceil(rect.height + 10)]);
+                }
+
+                let isDifferent = false;
+                if (currentRects.length !== window.lastMaskRects.length) {
+                    isDifferent = true;
+                } else {
+                    for(let i=0; i<currentRects.length; i++) {
+                        if (Math.abs(currentRects[i][0] - window.lastMaskRects[i][0]) > 5 ||
+                            Math.abs(currentRects[i][1] - window.lastMaskRects[i][1]) > 5 ||
+                            Math.abs(currentRects[i][2] - window.lastMaskRects[i][2]) > 5 ||
+                            Math.abs(currentRects[i][3] - window.lastMaskRects[i][3]) > 5) {
+                            isDifferent = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (isDifferent) {
+                    window.lastMaskRects = currentRects;
+                    let maskStr = "MASK:" + currentRects.map(r => r.join(',')).join('|');
+                    document.title = maskStr;
+                }
+            }, 100);
+
+            setTimeout(() => { document.title = "EVENT:READY"; }, 800);
+        });
+    </script>
+</body>
+</html>
