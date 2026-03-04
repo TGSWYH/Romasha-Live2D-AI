@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+
+romasha_memory_db/
+romasha_test_sandbox_db/
+
+logs/
+*.txt
+
+config.json
+
+venv/
+env/
