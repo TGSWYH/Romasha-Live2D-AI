@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Romasha Mobile</title>
+    <script src="https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js"></script>
+    <script src="https://unpkg.com/pixi.js@6.5.2/dist/browser/pixi.min.js"></script>
+    <script src="https://unpkg.com/pixi-live2d-display/dist/cubism4.min.js"></script>
+    <style>
+        body { 
+            margin: 0; padding: 0; overflow: hidden; 
+            background-color: #f0f0f0;
+            background-image: url('https://bpic.588ku.com/video_listen/588ku_pic/22/01/26/f612d165647210435bd8feaddb4dbb1d.jpg');
+            background-size: cover; background-position: center;
+        }
+        /* 🚨 触控核心修复：禁用 canvas 默认行为，接管所有手势 */
+        canvas { display: block; touch-action: none; outline: none; }
+
+        /* 🚨 统一的悬浮按钮基础样式 */
+        .side-btn {
+            position: fixed; width: 50px; height: 50px; border-radius: 25px;
+            background: rgba(255, 182, 193, 0.8); backdrop-filter: blur(5px); box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            border: 2px solid white; color: white; font-size: 24px; line-height: 50px; text-align: center;
+            z-index: 99; transition: transform 0.2s, bottom 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); user-select: none;
+        }
+        .side-btn:active { transform: scale(0.9); }
+
+        /* 左侧按钮组 (固定位置) */
+        #touch-toggle-btn { left: 20px; bottom: 90px; }
+        #gyro-toggle-btn { left: 20px; bottom: 30px; }
+
+        /* 右侧按钮组 (加入动态避让机制) */
+        #reset-btn { right: 20px; bottom: 90px; }
+        #chat-toggle-btn { right: 20px; bottom: 30px; }
+
+        /*🚨 调整输入框激活时，右侧按钮的上升高度，让它们紧挨着发送框 */
+        body.input-active #reset-btn { bottom: 140px; }
+        body.input-active #chat-toggle-btn { bottom: 80px; }
+
+        #chat-bubble {
+            position: absolute; background: rgba(255, 255, 255, 0.95);
+            border: 2px solid #ffb6c1; border-radius: 15px; padding: 10px 15px; /* 稍微缩小内边距 */
+            box-sizing: border-box;
+            /* 🚨 核心修复：限制最大宽度为 320px，防止在电脑端无限拉宽 */
+            max-width: min(85vw, 320px);
+            width: max-content;
+            max-height: 200px; overflow-y: auto; pointer-events: auto;
+            word-wrap: break-word; line-height: 1.5; font-family: 'Microsoft YaHei', sans-serif;
+            font-size: 14px; /* 稍微调小一点字号，更显精致 */
+            color: #333; box-shadow: 0px 4px 15px rgba(0,0,0,0.15);
+            transition: opacity 0.3s; opacity: 0; z-index: 100; transform: translate(-50%, -100%);
+        }
+        #chat-bubble::-webkit-scrollbar { width: 4px; }
+        #chat-bubble::-webkit-scrollbar-track { background: transparent; }
+        #chat-bubble::-webkit-scrollbar-thumb { background: #ffb6c1; border-radius: 2px; }
+        #chat-bubble::after {
+            content: ''; position: absolute; bottom: -10px; left: 50%; margin-left: -10px;
+            border-width: 10px 10px 0; border-style: solid; border-color: rgba(255, 255, 255, 0.95) transparent transparent transparent;
+        }
+
+        #input-container {
+            position: fixed; bottom: -100px; left: 50%; transform: translateX(-50%);
+            z-index: 100; transition: bottom 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            width: 90vw; display: flex; gap: 10px;
+        }
+        #input-container.active { bottom: 20px; }
+
+        #chat-input {
+            flex-grow: 1; background: rgba(0, 0, 0, 0.6); border: 1px solid rgba(255, 255, 255, 0.4);
+            border-radius: 20px; padding: 12px 20px; color: white; font-size: 16px;
+            outline: none; backdrop-filter: blur(10px);
+        }
+        #chat-input::placeholder { color: rgba(255, 255, 255, 0.8); }
+
+        #send-btn {
+            background: #ffb6c1; border: none; border-radius: 50%; width: 45px; height: 45px;
+            color: white; font-weight: bold; display: flex; justify-content: center; align-items: center;
+        }
+
+        #chat-toggle-btn {
+            position: fixed; right: 20px; bottom: 30px; width: 50px; height: 50px; border-radius: 25px;
+            background: rgba(255, 182, 193, 0.8); backdrop-filter: blur(5px); box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            border: 2px solid white; color: white; font-size: 24px; line-height: 50px; text-align: center;
+            z-index: 99; transition: transform 0.2s; user-select: none;
+        }
+        #chat-toggle-btn:active { transform: scale(0.9); }
+
+        #ws-status {
+            position: fixed; top: 10px; left: 10px; width: 10px; height: 10px;
+            border-radius: 50%; background-color: red; z-index: 1000;
+        }
+
+        /* 手机端错误捕获弹窗 */
+        #error-log {
+            position: fixed; top: 30px; left: 10px; right: 10px; background: rgba(255,0,0,0.8);
+            color: white; padding: 10px; border-radius: 5px; font-size: 12px; z-index: 9999; display: none;
+        }
+    </style>
+</head>
+<body oncontextmenu="return false;">
+
+    <div id="error-log"></div>
+    <div id="ws-status"></div>
+    <div id="chat-bubble"></div>
+
+    <div id="input-container">
+        <input type="text" id="chat-input" placeholder="对她说点什么..." autocomplete="off" />
+        <div id="send-btn">发送</div>
+    </div>
+
+    <div id="reset-btn" class="side-btn">🔄</div>
+    <div id="chat-toggle-btn" class="side-btn">💬</div>
+    <div id="touch-toggle-btn" class="side-btn">👆</div>
+    <div id="gyro-toggle-btn" class="side-btn">👁️</div>
+
+    <canvas id="canvas"></canvas>
+
+    <script>
+        // --- 手机端报错捕获神器 ---
+        window.onerror = function(msg, url, lineNo, columnNo, error) {
+            const errDiv = document.getElementById('error-log');
+            errDiv.style.display = 'block';
+            errDiv.innerHTML += `🚨 ${msg} (Line: ${lineNo})<br>`;
+            return false;
+        };
+
+        // ==========================================
+        // 1. WebSocket 网络通信模块
+        // ==========================================
+        const SERVER_IP = "100.112.248.101";
+        const WS_URL = `ws://${SERVER_IP}:8000/ws/romasha`;
+
+        let ws;
+        const statusDot = document.getElementById('ws-status');
+        const customParams = {};
+
+        function connectWebSocket() {
+            ws = new WebSocket(WS_URL);
+
+            ws.onopen = () => {
+                console.log("🌟 神经链接已建立！");
+                statusDot.style.backgroundColor = '#4ade80';
+                ws.send(JSON.stringify({ type: 'system', text: 'EVENT:READY' }));
+            };
+
+            ws.onmessage = (event) => {
+                const payload = JSON.parse(event.data);
+                switch(payload.action) {
+                    case 'bubble':
+                        window.showBubble(payload.html);
+                        break;
+                    case 'motion':
+                        if(window.romashaModel) window.romashaModel.motion(payload.group, payload.index, 3);
+                        break;
+                    case 'param':
+                        // 🚨 核心修复：如果后端发来 -99，说明要求解除强制锁定，把控制权还给物理动作文件！
+                        if (payload.value === -99) {
+                            delete customParams[payload.id];
+                        } else {
+                            customParams[payload.id] = payload.value;
+                        }
+                        break;
+                    case 'tracking':
+                        if(window.toggleTracking) window.toggleTracking(payload.state);
+                        break;
+                }
+            };
+
+            ws.onclose = () => {
+                statusDot.style.backgroundColor = '#f87171';
+                setTimeout(connectWebSocket, 3000);
+            };
+        }
+        connectWebSocket();
+
+        // ==========================================
+        // 2. UI 逻辑与气泡系统
+        // ==========================================
+        const chatBubble = document.getElementById('chat-bubble');
+        const inputContainer = document.getElementById('input-container');
+        const chatInput = document.getElementById('chat-input');
+        const chatToggleBtn = document.getElementById('chat-toggle-btn');
+        const sendBtn = document.getElementById('send-btn');
+        let bubbleTimeout = null;
+
+        window.showBubble = function(htmlText) {
+            chatBubble.innerHTML = htmlText;
+            chatBubble.style.opacity = 1;
+            chatBubble.scrollTop = chatBubble.scrollHeight;
+
+            if(bubbleTimeout) clearTimeout(bubbleTimeout);
+            let displayTime = Math.max(2000, htmlText.replace(/<[^>]+>/g, '').length * 80);
+            bubbleTimeout = setTimeout(() => { chatBubble.style.opacity = 0; }, displayTime);
+        };
+
+        // --- 1. 聊天展开按钮逻辑 ---
+        chatToggleBtn.addEventListener('click', () => {
+            inputContainer.classList.toggle('active');
+            // 🚨 通知 body 输入框已打开，触发 CSS 动画让右侧按钮上移
+            document.body.classList.toggle('input-active');
+            if (inputContainer.classList.contains('active')) chatInput.focus();
+            else chatInput.blur();
+        });
+
+        const sendMessage = () => {
+            const text = chatInput.value.trim();
+            if (text === '') return;
+
+            // --- 核心补充 1：世界线重置指令 ---
+            if (text === '/reset') {
+                if (confirm("「不可逆的抉择：世界线重置」\n\n真的要让她忘记这一切吗？\n你们将回到最初始的陌生人状态。")) {
+                    ws.send(JSON.stringify({ type: 'chat', text: '/SYSTEM_RESET_MEMORY' }));
+                }
+                chatInput.value = '';
+                inputContainer.classList.remove('active');
+                document.body.classList.remove('input-active'); // 🚨 核心修复：同步复位按钮位置
+                chatInput.blur();
+                return;
+            }
+
+            // --- 核心补充 2：视线跟随开关指令 ---
+            if (text.startsWith('/track ')) {
+                const stateVal = text.split(' ')[1] !== '0'; // 只要不是 0 就是开启
+                ws.send(JSON.stringify({ type: 'track_cmd', state: stateVal }));
+                chatInput.value = '';
+                inputContainer.classList.remove('active');
+                document.body.classList.remove('input-active'); // 🚨 核心修复：同步复位按钮位置
+                chatInput.blur();
+                return;
+            }
+
+            // --- 正常的聊天发送 ---
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                window.showBubble(`<span style='color:#48a1fa;'>你: ${text}</span><br><span style='color:#888; font-size:12px;'><i>(思考中...)</i></span>`);
+                ws.send(JSON.stringify({ type: 'chat', text: text }));
+                chatInput.value = '';
+                inputContainer.classList.remove('active');
+                document.body.classList.remove('input-active'); // 🚨 核心修复：同步复位按钮位置
+                chatInput.blur();
+            }
+        };
+
+        chatInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
+        sendBtn.addEventListener('click', sendMessage);
+
+        // ==========================================
+        // 3. PIXI 与 Live2D 渲染模块 (终极原生交互)
+        // ==========================================
+        const app = new PIXI.Application({
+            view: document.getElementById('canvas'),
+            autoStart: true, resizeTo: window, transparent: true, backgroundAlpha: 0
+        });
+
+        // 🚨 替换原有的 let trackingMode = 0;
+        // 尝试从本地读取之前的模式，如果没有记录，则默认是 0 (触控)
+        let trackingMode = parseInt(localStorage.getItem('romasha_trackingMode')) || 0;
+        let trackingEnabled = trackingMode !== 2; // 如果是 2 则代表关闭跟随
+
+        // 🚨 用来记录每次开启时的基准姿势
+        let baseBeta = null;
+        let baseGamma = null;
+
+        const gyroToggleBtn = document.getElementById('gyro-toggle-btn');
+        // 🚨 新增：网页刚加载时，根据记忆的状态初始化图标
+        if (trackingMode === 0) gyroToggleBtn.innerText = '👁️';
+        else if (trackingMode === 1) gyroToggleBtn.innerText = '🧭';
+        else gyroToggleBtn.innerText = '💤';
+
+        // 覆盖原来的 toggleTracking 接口，兼容后端的发呆逻辑
+        window.toggleTracking = function(state) {
+            trackingEnabled = state;
+            if (!state) {
+                if(window.romashaModel) window.romashaModel.internalModel.focusController.focus(0, 0);
+            }
+        };
+
+        // --- 2. 记忆重置按钮逻辑 (新增) ---
+        const resetBtn = document.getElementById('reset-btn');
+        resetBtn.addEventListener('click', () => {
+            if (confirm("「不可逆的抉择：世界线重置」\n\n真的要让她忘记这一切吗？\n你们将回到最初始的陌生人状态。")) {
+                ws.send(JSON.stringify({ type: 'chat', text: '/SYSTEM_RESET_MEMORY' }));
+            }
+        });
+
+        // --- 3. 视线模式切换逻辑 (更新图标与缓存) ---
+        gyroToggleBtn.addEventListener('click', async () => {
+            trackingMode = (trackingMode + 1) % 3;
+
+            // 🚨 新增：每次点击后，把最新的状态保存到本地
+            localStorage.setItem('romasha_trackingMode', trackingMode);
+
+            targetFocusX = 0; targetFocusY = 0;
+            baseGravX = null; baseGravY = null;
+
+            if (trackingMode === 0) {
+                gyroToggleBtn.innerText = '👁️';
+                window.showBubble("<span style='color:#888; font-size:12px;'><i>(她开始随着你的指尖移动视线...)</i></span>");
+            } else if (trackingMode === 1) {
+                gyroToggleBtn.innerText = '🧭';
+                window.showBubble("<span style='color:#888; font-size:12px;'><i>(她感知到了你所在空间的倾斜...)</i></span>");
+            } else {
+                gyroToggleBtn.innerText = '💤';
+                window.showBubble("<span style='color:#888; font-size:12px;'><i>(她收回了视线，不再关注外界的动静...)</i></span>");
+            }
+        });
+
+        // --- 4. 触摸互动开关逻辑 (更新图标与缓存) ---
+        // 🚨 替换原有的 let touchEnabled = true;
+        let savedTouch = localStorage.getItem('romasha_touchEnabled');
+        // 如果本地有记录就用记录的，没记录就默认 true
+        let touchEnabled = savedTouch !== null ? savedTouch === 'true' : true;
+
+        const touchToggleBtn = document.getElementById('touch-toggle-btn');
+
+        // 🚨 新增：网页刚加载时，根据记忆的状态初始化图标
+        touchToggleBtn.innerText = touchEnabled ? '👆' : '🔒';
+
+        touchToggleBtn.addEventListener('click', () => {
+            touchEnabled = !touchEnabled;
+
+            // 🚨 新增：每次点击后，把最新的状态保存到本地
+            localStorage.setItem('romasha_touchEnabled', touchEnabled);
+
+            if (touchEnabled) {
+                touchToggleBtn.innerText = '👆';
+                window.showBubble("<span style='color:#888; font-size:12px;'><i>(你们之间的物理屏障消散了...)</i></span>");
+            } else {
+                touchToggleBtn.innerText = '🔒';
+                window.showBubble("<span style='color:#888; font-size:12px;'><i>(一道无形的屏障将你们轻轻隔绝...)</i></span>");
+            }
+        });
+
+        // 陀螺仪坐标映射算法
+        function handleGyro(event) {
+            if (!trackingEnabled || trackingMode !== 1 || !window.romashaModel) return;
+
+            let beta = event.beta;   // 前后倾斜 [-180, 180] (手机竖拿时通常在 30~70度)
+            let gamma = event.gamma; // 左右倾斜 [-90, 90]  (平拿是0)
+
+            // 限制并映射左右倾斜：-30度到30度 映射到 屏幕最左到最右
+            let clampedGamma = Math.max(-30, Math.min(30, gamma));
+            let targetX = ((clampedGamma + 30) / 60) * window.innerWidth;
+
+            // 限制并映射前后倾斜：30度到80度 映射到 屏幕最上到最下
+            let clampedBeta = Math.max(30, Math.min(80, beta));
+            let targetY = ((clampedBeta - 30) / 50) * window.innerHeight;
+
+            window.romashaModel.focus(targetX, targetY);
+        }
+
+        // 🚨 终极焦点接管：强制使用 -1 到 1 的标准化坐标 (0,0为正视前方)
+        let targetFocusX = 0;
+        let targetFocusY = 0;
+
+        // 🚨 记录开启跟随瞬间的手机基准倾斜角
+        let baseGravX = null;
+        let baseGravY = null;
+
+        // 🚨 终极重力引擎：带有相对零点校准与完美平滑过渡
+        window.handleNativeGyro = function(gravX, gravY, gravZ) {
+            if (!trackingEnabled || trackingMode !== 1 || !window.romashaModel) return;
+
+            // 1. 抓取开启瞬间的姿势作为基准“零点”
+            if (baseGravX === null || baseGravY === null) {
+                baseGravX = gravX;
+                baseGravY = gravY;
+            }
+
+            // 2. 计算当前姿势与基准点的物理偏差
+            let deltaX = gravX - baseGravX;
+            let deltaY = gravY - baseGravY;
+
+            // 3. 映射到 -1 到 1 的视觉坐标
+            // 除以 3.0 代表倾斜约 30 度即达到视线极限边缘 (数值越小越灵敏)
+            // 并且加负号修复安卓与 Live2D 之间的方向反转
+            // 🚨 X 轴调钝：把除以 3.0 改成除以 7.0 (你需要大幅度左右摇晃她才会看边缘)
+            let destX = -(deltaX / 7.0);
+            // 🚨 Y 轴调敏：把除以 3.0 改成除以 1.5 (你只需微微前后倾斜，她就会抬头/低头)
+            let destY = -(deltaY / 1.5);
+
+            // 4. 锁死边界，防止眼球乱飞
+            destX = Math.max(-1, Math.min(1, destX));
+            destY = Math.max(-1, Math.min(1, destY));
+
+            // 5. 缓动平滑赋值 (0.1的顺滑度，告别僵硬与抽搐)
+            targetFocusX += (destX - targetFocusX) * 0.1;
+            targetFocusY += (destY - targetFocusY) * 0.1;
+        };
+
+        PIXI.live2d.Live2DModel.from('model/romasha_talk.model3.json').then(model => {
+            app.stage.addChild(model);
+            window.romashaModel = model;
+
+            // 🚨 将 0.18 调大，这里以 0.28 为例，你可以根据观感自由微调 (如 0.25 ~ 0.35)
+            model.scale.set(0.45);
+            // 🚨 稍微调小 Y 轴的比例 (从 0.15 改为 0.10)，让模型重心稍微往上提一点
+            // 把模型的顶点（或者原点）放在距离屏幕顶部 10% 的位置。
+            model.y = window.innerHeight * 0.10;
+            model.x = window.innerWidth / 2 - model.width / 2;
+
+            model.interactive = false;
+
+            // 🚨 核心联动：模型彻底加载完毕，通知安卓端关掉粉色转圈圈！
+            if (window.AndroidApp && window.AndroidApp.onModelFullyLoaded) {
+                window.AndroidApp.onModelFullyLoaded();
+            }
+
+            app.ticker.add(() => {
+                let bounds = model.getBounds();
+                let targetBubbleY = bounds.y + 30;
+                if (targetBubbleY - chatBubble.offsetHeight < 10) targetBubbleY = chatBubble.offsetHeight + 10;
+                chatBubble.style.left = (bounds.x + bounds.width / 2) + 'px';
+                chatBubble.style.top = targetBubbleY + 'px';
+
+                if (model.internalModel && model.internalModel.coreModel) {
+                    for (const [key, val] of Object.entries(customParams)) {
+                        model.internalModel.coreModel.setParameterValueById(key, val);
+                    }
+
+                    // 🚨 终极绝杀：每一帧强制覆盖底层引擎的幽灵追踪，注入我们自己的焦点坐标！
+                    if (model.internalModel.focusController) {
+                        model.internalModel.focusController.focus(targetFocusX, targetFocusY);
+                    }
+                }
+            });
+
+            // 覆盖原来的 toggleTracking 接口
+            window.toggleTracking = function(state) {
+                trackingEnabled = state;
+                if (!state) {
+                    targetFocusX = 0; // 🚨 回到正中心，而不是左上角
+                    targetFocusY = 0;
+                }
+            };
+
+            // 🚨 终极触控修复：完全使用浏览器全局 Native Pointer Events
+            let isDragging = false;
+            let downX = 0, downY = 0;
+            let downTime = 0;
+            let initialPinchDistance = null;
+            let initialScale = 1;
+
+            const touchPrompts = {
+                "head": "*你温柔地摸了摸她的头*", "face": "*你轻轻戳了戳她的脸颊*", "bust": "*你不小心碰到了她的胸部*",
+                "belly": "*你搂住了她的腰*", "hip": "*你不小心碰到了她的臀部*", "crotch": "*你不小心碰到了她的隐私部位*",
+                "leg": "*你碰到了她的腿*", "hand_right": "*你牵起了她的右手*", "hand_left": "*你握住了她的左手*"
+            };
+
+            // 双指缩放侦测
+            window.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 2) {
+                    isDragging = false;
+                    initialPinchDistance = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+                    initialScale = model.scale.x;
+                }
+            }, {passive: false});
+
+            window.addEventListener('touchmove', (e) => {
+                if (e.touches.length === 2 && initialPinchDistance) {
+                    let currentDistance = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+                    let scale = initialScale * (currentDistance / initialPinchDistance);
+                    scale = Math.max(0.08, Math.min(scale, 0.8));
+                    model.scale.set(scale);
+                }
+                // 🚨 修复：将触控坐标映射为 -1 到 +1，并且把 Y 轴加上负号反转！
+                else if (trackingEnabled && trackingMode === 0 && e.touches.length === 1 && !initialPinchDistance) {
+                    targetFocusX = (e.touches[0].clientX / window.innerWidth) * 2 - 1;
+                    targetFocusY = -((e.touches[0].clientY / window.innerHeight) * 2 - 1); // 👈 核心修复：前面加了负号
+                }
+            }, {passive: false});
+
+            window.addEventListener('touchend', (e) => {
+                if (e.touches.length < 2) initialPinchDistance = null;
+            });
+
+            // 点击与拖拽侦测
+            window.addEventListener('pointerdown', (e) => {
+                // 🚨 将所有带 side-btn 类的按钮以及气泡和输入框加入免打扰白名单
+                if (e.target.closest('#chat-bubble') || e.target.closest('#input-container') ||
+                    e.target.closest('.side-btn')) return;
+
+                downX = e.clientX;
+                downY = e.clientY;
+                downTime = Date.now();
+                isDragging = true;
+            });
+
+            window.addEventListener('pointerup', (e) => {
+                if(!isDragging || initialPinchDistance) return;
+                isDragging = false;
+
+                let upTime = Date.now();
+                let dist = Math.hypot(e.clientX - downX, e.clientY - downY);
+
+                // 判断是否是“点击”
+                if(dist < 40 && (upTime - downTime) < 500) {
+                    // 🚨 终极防误触拦截：如果触摸被锁定了，直接退出，不执行后续的身体部位运算！
+                    if (!touchEnabled) return;
+
+                    const bounds = model.getBounds();
+                    // 检查点击是否落在模型身上
+                    if (e.clientX >= bounds.x && e.clientX <= bounds.x + bounds.width &&
+                        e.clientY >= bounds.y && e.clientY <= bounds.y + bounds.height) {
+
+                        const relX = (e.clientX - bounds.x) / bounds.width;
+                        const relY = (e.clientY - bounds.y) / bounds.height;
+
+                        let bodyPart = "unknown";
+                        if (relY < 0.22) bodyPart = "head";
+                        else if (relY < 0.33) bodyPart = "face";
+                        else if (relY < 0.53 && relY > 0.43) bodyPart = "bust";
+                        else if (relY < 0.65) bodyPart = "belly";
+                        else if (relY < 0.78) {
+                            if (relX > 0.52 && relX < 0.55) bodyPart = "hip";
+                            else bodyPart = "crotch";
+                        } else bodyPart = "leg";
+
+                        if (relY > 0.69 && relY < 0.78) {
+                            if (relX < 0.37) bodyPart = "hand_right";
+                            if (relX > 0.57) bodyPart = "hand_left";
+                        }
+
+                        // 🌟 瞬间视觉反馈：在本地直接弹气泡！不等后端了！
+                        let actionText = touchPrompts[bodyPart] || "*你触碰了她*";
+                        window.showBubble(`<span style='color:#fd92a1;'>${actionText}</span><br><span style='color:#888; font-size:12px;'><i>(反应中...)</i></span>`);
+
+                        if (ws && ws.readyState === WebSocket.OPEN) {
+                            ws.send(JSON.stringify({ type: 'touch', part: bodyPart }));
+                        }
+                    }
+                }
+            });
+
+            window.addEventListener('pointermove', (e) => {
+                if (isDragging && !initialPinchDistance) {
+                    model.x += e.clientX - downX;
+                    model.y += e.clientY - downY;
+                    downX = e.clientX;
+                    downY = e.clientY;
+
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                        ws.send(JSON.stringify({ type: 'drag' }));
+                    }
+                }
+            });
+
+        });
+    </script>
+</body>
+</html>
