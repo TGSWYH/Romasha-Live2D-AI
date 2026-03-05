@@ -46,7 +46,7 @@ pip install -r requirements.txt
 首次运行程序时，如果目录下没有 config.json，系统会在控制台提示并自动生成一个默认的配置文件。你需要打开它并填入你自己的 API 信息：
 
 * api_key：你的大模型 API 密钥。
-* base_url：大模型接口地址（支持任何 OpenAI 兼容格式的转发地址）。
+* base_url：大模型接口地址（支持任何 OpenAI/Ollama 兼容格式的转发地址）。
 * target_model：你想要调用的具体模型名称。
 
 (注意：此文件还会自动记录程序退出时的窗口坐标、缩放比例以及当前的亲密度，请勿随意破坏内部的 JSON 格式。)
