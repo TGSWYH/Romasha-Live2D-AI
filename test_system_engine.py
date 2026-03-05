@@ -89,8 +89,9 @@ class ApiTestWorker(QThread):
     finished = pyqtSignal(str)
     error = pyqtSignal(str)
 
-    def __init__(self, base_url, api_key, model, system_prompt, user_text):
+    def __init__(self, api_type, base_url, api_key, model, system_prompt, user_text):
         super().__init__()
+        self.api_type = api_type
         self.base_url = base_url
         self.api_key = api_key
         self.model = model
@@ -99,27 +100,57 @@ class ApiTestWorker(QThread):
 
     def run(self):
         try:
-            client = OpenAI(api_key=self.api_key, base_url=self.base_url, timeout=60.0)
-
             messages = []
             if self.system_prompt.strip():
                 messages.append({"role": "system", "content": self.system_prompt})
             messages.append({"role": "user", "content": self.user_text})
-
-            response = client.chat.completions.create(
-                model=self.model,
-                messages=messages,
-                stream=True,
-                temperature=0.7
-            )
             full_reply = ""
-            for chunk in response:
-                if chunk.choices and len(chunk.choices) > 0:
-                    delta = chunk.choices[0].delta.content
-                    if delta:
-                        full_reply += delta
-                        self.chunk_received.emit(delta)
-            self.finished.emit(full_reply)
+
+            if self.api_type == "openai":
+                client = OpenAI(api_key=self.api_key, base_url=self.base_url, timeout=60.0)
+                response = client.chat.completions.create(
+                    model=self.model,
+                    messages=messages,
+                    stream=True,
+                    temperature=0.7
+                )
+                for chunk in response:
+                    if chunk.choices and len(chunk.choices) > 0:
+                        delta = chunk.choices[0].delta.content
+                        if delta:
+                            full_reply += delta
+                            self.chunk_received.emit(delta)
+                self.finished.emit(full_reply)
+
+            elif self.api_type == "ollama":
+                import requests
+                import json
+
+                url = self.base_url.rstrip('/')
+                if not url.endswith('/api/chat'):
+                    url = f"{url}/api/chat"
+
+                payload = {
+                    "model": self.model,
+                    "messages": messages,
+                    "stream": True,
+                    "options": {"temperature": 0.7}
+                }
+                headers = {"Content-Type": "application/json"}
+                if self.api_key:
+                    headers["Authorization"] = f"Bearer {self.api_key}"
+
+                with requests.post(url, json=payload, headers=headers, stream=True, timeout=60.0) as resp:
+                    resp.raise_for_status()
+                    for line in resp.iter_lines():
+                        if line:
+                            data = json.loads(line)
+                            if "message" in data and "content" in data["message"]:
+                                delta = data["message"]["content"]
+                                full_reply += delta
+                                self.chunk_received.emit(delta)
+                self.finished.emit(full_reply)
+
         except Exception as e:
             self.error.emit(str(e))
 
@@ -209,6 +240,7 @@ class SystemEngineTester(QMainWindow):
         self.init_memory_tab()
         self.init_api_sandbox_tab()
 
+
     def init_stream_tab(self):
         tab = QWidget()
         layout = QVBoxLayout(tab)
@@ -257,6 +289,7 @@ class SystemEngineTester(QMainWindow):
         layout.addLayout(hbox_bottom)
 
         self.tabs.addTab(tab, "📡 串流弹幕")
+
 
     def _get_slider_config(self, param_id):
         integer_params = ['hearchange', 'buraONFOFF', 'pantsuONFOFF', 'minzokucloth',
@@ -579,7 +612,7 @@ class SystemEngineTester(QMainWindow):
         btn_read_sandbox.clicked.connect(lambda: self.refresh_memory(mode="sandbox"))
 
         hbox_controls.addWidget(btn_read_real)
-        hbox_controls.addWidget(btn_copy_real)
+        hbox_controls.addWidget(btn_copy_real) # 新增拷贝按钮
         hbox_controls.addWidget(btn_read_sandbox)
         layout.addLayout(hbox_controls)
 
@@ -615,6 +648,10 @@ class SystemEngineTester(QMainWindow):
         group_api = QGroupBox("🔑 真实 API 连通性测试 (读取 llm_brain 配置)")
         api_layout = QGridLayout()
 
+        self.input_api_type = QComboBox()
+        self.input_api_type.addItems(["openai", "ollama"])
+        self.input_api_type.setCurrentText(llm_brain.config.get("api_type", "openai"))
+
         self.input_api_url = QLineEdit()
         self.input_api_url.setText(llm_brain.config.get("base_url", "https://api.openai.com/v1"))
         self.input_api_key = QLineEdit()
@@ -623,12 +660,14 @@ class SystemEngineTester(QMainWindow):
         self.input_api_model = QLineEdit()
         self.input_api_model.setText(llm_brain.config.get("target_model", "gpt-3.5-turbo"))
 
-        api_layout.addWidget(QLabel("Base URL:"), 0, 0)
-        api_layout.addWidget(self.input_api_url, 0, 1)
-        api_layout.addWidget(QLabel("API Key:"), 1, 0)
-        api_layout.addWidget(self.input_api_key, 1, 1)
-        api_layout.addWidget(QLabel("Target Model:"), 2, 0)
-        api_layout.addWidget(self.input_api_model, 2, 1)
+        api_layout.addWidget(QLabel("API Type:"), 0, 0)
+        api_layout.addWidget(self.input_api_type, 0, 1)
+        api_layout.addWidget(QLabel("Base URL:"), 1, 0)
+        api_layout.addWidget(self.input_api_url, 1, 1)
+        api_layout.addWidget(QLabel("API Key:"), 2, 0)
+        api_layout.addWidget(self.input_api_key, 2, 1)
+        api_layout.addWidget(QLabel("Target Model:"), 3, 0)
+        api_layout.addWidget(self.input_api_model, 3, 1)
 
         group_api.setLayout(api_layout)
         layout.addWidget(group_api)
@@ -708,6 +747,7 @@ class SystemEngineTester(QMainWindow):
         self.exec_js(f"window.setRomashaParam('{param_id}', {value});")
 
     def matrix_param_changed(self, param, slider_value, val_label=None):
+        """处理矩阵面板的数值改变，按比例还原后发送给 JS"""
         div = self.param_dividers.get(param, 10.0)
         val = slider_value / float(div)
 
@@ -735,6 +775,7 @@ class SystemEngineTester(QMainWindow):
             else:
                 slider.setValue(0)
                 self.set_parameter(p, 0.0)
+
 
         for slider in self.param_sliders.values():
             slider.blockSignals(False)
@@ -982,7 +1023,6 @@ class SystemEngineTester(QMainWindow):
             self.log_param(f"❌ 拷贝失败: {e}")
 
     def _build_prompts(self):
-        """核心封装：提取拼装 System Prompt 和 User Input 的逻辑"""
         user_text = self.api_input.toPlainText().strip()
         if not user_text:
             user_text = "（测试空输入）"
@@ -1042,12 +1082,13 @@ class SystemEngineTester(QMainWindow):
         self.log_param(f"🔍 Prompt 组装完毕 (预估Token: {est_tokens})。")
 
     def send_real_api_request(self):
+        api_type = self.input_api_type.currentText().strip()
         base_url = self.input_api_url.text().strip()
         api_key = self.input_api_key.text().strip()
         model = self.input_api_model.text().strip()
 
-        if not api_key:
-            QMessageBox.warning(self, "警告", "API Key 不能为空！")
+        if api_type == "openai" and not api_key:
+            QMessageBox.warning(self, "警告", "OpenAI 模式下 API Key 不能为空！")
             return
 
         btn_sender = self.sender()
@@ -1061,7 +1102,7 @@ class SystemEngineTester(QMainWindow):
         self.api_output.append("\n\n=============== [ 🚀 正在请求 API，请稍候... ] ===============\n")
         self.log_param("📡 开始向填写的 API 接口发送实机测试请求...")
 
-        self.api_worker = ApiTestWorker(base_url, api_key, model, system_prompt, user_text)
+        self.api_worker = ApiTestWorker(api_type, base_url, api_key, model, system_prompt, user_text)
         self.api_worker.chunk_received.connect(self.on_api_chunk)
         self.api_worker.error.connect(self.on_api_error)
         self.api_worker.finished.connect(self.on_api_finished)

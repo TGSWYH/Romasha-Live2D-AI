@@ -3,6 +3,7 @@ import os
 import sys
 import json
 import datetime
+import requests
 from openai import OpenAI
 
 import persona
@@ -21,8 +22,9 @@ CONFIG_FILE = os.path.join(app_dir, "config.json")
 
 def load_config():
     default_config = {
-        "api_key": "你的api_key填写在这里",
-        "base_url": "兼容openai的url",
+        "api_type": "openai",
+        "api_key": "你的API_KEY",
+        "base_url": "你的大模型接口地址",
         "target_model": "模型名称",
         "intimacy": 0,
         "scale": 0.5,
@@ -44,6 +46,8 @@ def load_config():
     try:
         with open(CONFIG_FILE, "r", encoding="utf-8") as f:
             user_config = json.load(f)
+            if "api_type" not in user_config:
+                user_config["api_type"] = "openai"
             if "intimacy" not in user_config:
                 user_config["intimacy"] = 0
             print("🔧 成功读取外部配置文件 config.json！")
@@ -140,24 +144,57 @@ def stream_chat_with_romasha(user_text, interrupted_text, thread_obj):
     messages.append({"role": "user", "content": injected_user_text})
 
     try:
-
-        response = client.chat.completions.create(
-            model=TARGET_MODEL,
-            messages=messages,
-            temperature=0.7,
-            #max_tokens=150,
-            stream=True
-        )
-
         full_reply = ""
-        for chunk in response:
-            if thread_obj.is_cancelled: break
+        api_type = config.get("api_type", "openai").lower()
 
-            if chunk.choices and len(chunk.choices) > 0:
-                delta = chunk.choices[0].delta.content
-                if delta:
-                    full_reply += delta
-                    thread_obj.chunk_received.emit(delta)
+        if api_type == "openai":
+            response = client.chat.completions.create(
+                model=TARGET_MODEL,
+                messages=messages,
+                temperature=0.7,
+                # max_tokens=150,
+                stream=True
+            )
+            for chunk in response:
+                if thread_obj.is_cancelled: break
+                if chunk.choices and len(chunk.choices) > 0:
+                    delta = chunk.choices[0].delta.content
+                    if delta:
+                        full_reply += delta
+                        thread_obj.chunk_received.emit(delta)
+
+        elif api_type == "ollama":
+            base_url = config.get("base_url", "").rstrip('/')
+            if not base_url.endswith('/api/chat'):
+                base_url = f"{base_url}/api/chat"
+
+            payload = {
+                "model": TARGET_MODEL,
+                "messages": messages,
+                "stream": True,
+                "options": {
+                    "temperature": 0.7
+                }
+            }
+
+            headers = {"Content-Type": "application/json"}
+            api_key = config.get("api_key", "")
+            if api_key:
+                headers["Authorization"] = f"Bearer {api_key}"
+
+            with requests.post(base_url, json=payload, headers=headers, stream=True, timeout=120.0) as resp:
+                resp.raise_for_status()
+                for line in resp.iter_lines():
+                    if thread_obj.is_cancelled: break
+                    if line:
+                        data = json.loads(line)
+                        if "message" in data and "content" in data["message"]:
+                            delta = data["message"]["content"]
+                            full_reply += delta
+                            thread_obj.chunk_received.emit(delta)
+        else:
+            error_msg = f"[act_trouble] 唔……头好痛……非常抱歉，我的头佩设备好像接收到了一个完全无法解析的指令（{api_type}）……我的思维暂时连不上了……是我哪里做错了吗？"
+            thread_obj.chunk_received.emit(error_msg)
 
         if not user_text.startswith("[系统机制"):
             memory_manager.add_memory(user_text, full_reply)
@@ -167,4 +204,6 @@ def stream_chat_with_romasha(user_text, interrupted_text, thread_obj):
         if len(chat_history) > 12: chat_history = chat_history[-12:]
 
     except Exception as e:
-        thread_obj.chunk_received.emit(f"[act_trouble] 抱歉，我的思绪陷入了混乱... {e}")
+        short_error = str(e)[:30] + "..." if len(str(e)) > 30 else str(e)
+        error_msg = f"[act_trouble] 呃……抱歉，我的意识刚才好像突然被切断了，脑海里只有一阵尖锐的杂音（{short_error}）……请稍微给我一点时间平复一下……"
+        thread_obj.chunk_received.emit(error_msg)
