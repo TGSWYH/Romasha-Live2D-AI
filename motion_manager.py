@@ -41,9 +41,6 @@ MOTIONS = {
 
 
 def get_motion_index(action_name):
-    """
-    根据动作名称获取对应的索引号。如果找不到，默认返回 'talk' (24) 的索引。
-    """
     action_name = action_name.lower()
 
                      

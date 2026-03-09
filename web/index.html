@@ -8,7 +8,7 @@
     <script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display/dist/cubism4.min.js"></script>
     <style>
         :root {
-            --main-font-size: 16px; /* 默认 size 1 */
+            --main-font-size: 16px;
             --sub-font-size: 14px;
         }
 
@@ -281,7 +281,7 @@
                 if(bubbleTimeout) clearTimeout(bubbleTimeout);
 
                 if (!keepAlive) {
-                    let displayTime = Math.max(5000, text.replace(/<[^>]+>/g, '').length * 80);
+                    let displayTime = Math.max(5000, htmlText.replace(/<[^>]+>/g, '').length * 80);
                     bubbleTimeout = setTimeout(() => {
                         chatBubble.style.opacity = 0;
                     }, displayTime);
@@ -436,5 +436,4 @@
         });
     </script>
 </body>
-
 </html>

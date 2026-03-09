@@ -3,21 +3,15 @@ import sys
 import os
 import datetime
 
-# =====================================================================
-# 🚨 核心拦截器：全局日志重定向 (必须放在所有其他 import 之前！)
-# =====================================================================
-# 获取程序当前运行的绝对路径 (兼容打包后的 exe)
 if getattr(sys, 'frozen', False):
     app_base_dir = os.path.dirname(sys.executable)
 else:
     app_base_dir = os.path.dirname(os.path.abspath(__file__))
 
-# 自动创建 logs 文件夹
 log_dir = os.path.join(app_base_dir, "logs")
 if not os.path.exists(log_dir):
     os.makedirs(log_dir)
 
-# 按照当前时间生成日志文件名
 current_time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 log_file_path = os.path.join(log_dir, f"Romasha_Log_{current_time}.txt")
 
@@ -27,12 +21,11 @@ class StreamToLogger(object):
 
     def write(self, message):
         self.log.write(message)
-        self.log.flush()  # 🚨 强制实时写入硬盘！这样你打开文件就能看到最新对话
+        self.log.flush()
 
     def flush(self):
         self.log.flush()
 
-# 暴力劫持系统的标准输出 (print) 和标准错误 (报错信息)
 sys.stdout = StreamToLogger(log_file_path)
 sys.stderr = sys.stdout
 # =====================================================================
@@ -295,6 +288,12 @@ class RomashaDesktop(QMainWindow):
         self.typewriter_timer.timeout.connect(self.typewriter_tick)
         self.typewriter_timer.start(40)
 
+                                    
+        self.is_showing_notification = False
+        self.notification_timer = QTimer(self)
+        self.notification_timer.setSingleShot(True)
+        self.notification_timer.timeout.connect(self.restore_bubble_state)
+
                                 
         self.static_mood_timer = QTimer(self)
         self.static_mood_timer.setSingleShot(True)
@@ -396,6 +395,41 @@ class RomashaDesktop(QMainWindow):
                                            
                                         
 
+    def show_system_notification(self, html_text, duration=1500):
+        """显示临时系统通知，并暂停当前的对话气泡"""
+        self.is_showing_notification = True
+        safe_html = html_text.replace("'", "\\'").replace('"', '\\"')
+
+                                     
+        self.browser.page().runJavaScript(f"window.showBubble('{safe_html}', true);")
+
+                                                
+        self.notification_timer.start(duration)
+
+    def restore_bubble_state(self):
+        """恢复被指令打断的对话气泡"""
+        self.is_showing_notification = False
+
+                                        
+        if self.is_waiting_for_voice:
+            bubble_html = self.current_context_html + "<span style='color:#888; font-size: var(--sub-font-size);'><i>(微启双唇，正在酝酿要说的话...)</i></span>"
+            safe_html = bubble_html.replace("'", "\\'")
+            self.browser.page().runJavaScript(f"window.showBubble('{safe_html}', true);")
+
+                       
+        elif self.current_display_text != self.target_display_text:
+                                                 
+                                             
+            pass
+
+                                      
+        else:
+                                                      
+            safe_text = self.current_display_text.replace("\\", "\\\\").replace("\n", "<br>")
+            final_html = self.current_context_html + safe_text
+            safe_html = final_html.replace("'", "\\'")
+            self.browser.page().runJavaScript(f"window.showBubble('{safe_html}', false);")
+
     def apply_initial_state(self):
         now = datetime.datetime.now()
         month, day, hour = now.month, now.day, now.hour
@@ -442,6 +476,9 @@ class RomashaDesktop(QMainWindow):
             self.browser.page().runJavaScript(f"window.updateGlobalMouse({pos.x()}, {pos.y()});")
 
     def reset_afk(self):
+                                               
+        was_deep_sleeping = (self.vision_idle_seconds >= 300)
+
                             
         self.thought_idle_seconds = 0
         self.vision_idle_seconds = 0
@@ -452,7 +489,12 @@ class RomashaDesktop(QMainWindow):
                                    
         if self.is_tracking_enabled:
             self.browser.page().runJavaScript("window.toggleTracking(true);")
-        self.trigger_motion('BaseMotions', self.current_idle_motion)
+
+                    
+                                                    
+                                                   
+        if was_deep_sleeping:
+            self.trigger_motion('BaseMotions', self.current_idle_motion)
 
     def idle_tick(self):
                                                        
@@ -709,7 +751,13 @@ class RomashaDesktop(QMainWindow):
                 if reply == QMessageBox.Yes:
                                    
                     self.brain_worker.task_queue.put(("/SYSTEM_RESET_MEMORY", ""))
-                    self.browser.page().runJavaScript("window.showBubble('<i>(记忆已被重置，迎来了崭新的初见...)</i>');")
+
+                            
+                    self.current_context_html = ""
+                    self.current_display_text = ""
+                    self.target_display_text = ""
+
+                    self.show_system_notification("<span style='color:#888; font-size: var(--sub-font-size);'><i>(记忆已被重置，迎来了崭新的初见...)</i></span>", 3000)
 
                                                                 
                                           
@@ -750,7 +798,7 @@ class RomashaDesktop(QMainWindow):
                          
                 bubble_desc = "她似乎注意到了你在这边..." if state_bool else "她移开了视线，不再关注你的举动..."
                 bubble_html = f"<span style='color:#888; font-size: var(--sub-font-size);'><i>({bubble_desc})</i></span>"
-                self.browser.page().runJavaScript(f"window.showBubble(\"{bubble_html}\");")
+                self.show_system_notification(bubble_html, 1500)                   
                 return
 
                                      
@@ -772,7 +820,7 @@ class RomashaDesktop(QMainWindow):
                          
                 bubble_desc = "她似乎能真切感受到你的存在..." if state_bool else "触碰的感知似乎被隔绝了..."
                 bubble_html = f"<span style='color:#888; font-size: var(--sub-font-size);'><i>({bubble_desc})</i></span>"
-                self.browser.page().runJavaScript(f"window.showBubble(\"{bubble_html}\");")
+                self.show_system_notification(bubble_html, 1500)                   
                 return
 
                                      
@@ -802,7 +850,7 @@ class RomashaDesktop(QMainWindow):
                     return          
 
                 bubble_html = f"<span style='color:#888; font-size: var(--sub-font-size);'><i>({bubble_desc})</i></span>"
-                self.browser.page().runJavaScript(f"window.showBubble(\"{bubble_html}\");")
+                self.show_system_notification(bubble_html, 1500)                   
                 return
 
                                   
@@ -817,7 +865,7 @@ class RomashaDesktop(QMainWindow):
                         print(f"\n📏 [认知焦距]: 伴随着你注意力的集中，眼前的思绪与话语变得{size_desc}了。")
 
                         bubble_html = f"<span style='color:#888; font-size: var(--sub-font-size);'><i>(视界已调整为适宜的大小...)</i></span>"
-                        self.browser.page().runJavaScript(f"window.showBubble(\"{bubble_html}\");")
+                        self.show_system_notification(bubble_html, 1500)                   
                 except Exception:
                     pass
                 return
@@ -839,7 +887,7 @@ class RomashaDesktop(QMainWindow):
                         bubble_desc = "她的语调恢复了正常的频率..."
 
                     bubble_html = f"<span style='color:#888; font-size: var(--sub-font-size);'><i>({bubble_desc})</i></span>"
-                    self.browser.page().runJavaScript(f"window.showBubble(\"{bubble_html}\");")
+                    self.show_system_notification(bubble_html, 1500)                   
                 return
 
                                      
@@ -982,6 +1030,10 @@ class RomashaDesktop(QMainWindow):
 
                                   
     def typewriter_tick(self):
+                                         
+        if getattr(self, 'is_showing_notification', False):
+            return
+
                             
         if self.current_display_text != self.target_display_text:
             self.is_typing = True

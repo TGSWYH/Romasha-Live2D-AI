@@ -26,7 +26,7 @@ CONFIG_FILE = os.path.join(app_dir, "config.json")
 def load_config():
     default_config = {
         "api_type": "openai",                               
-        "api_key": "你的api_key",
+        "api_key": "你的apikey",
         "base_url": "你的大模型接口",
         "target_model": "gemini-3-flash-preview",
         "intimacy": 0,                
@@ -250,12 +250,16 @@ def stream_chat_with_romasha(user_text, interrupted_text, thread_obj):
                 for line in resp.iter_lines():
                     if thread_obj.is_cancelled: break
                     if line:
-                        data = json.loads(line)
-                                                                        
-                        if "message" in data and "content" in data["message"]:
-                            delta = data["message"]["content"]
-                            full_reply += delta
-                            thread_obj.chunk_received.emit(delta)
+                                                                   
+                        try:
+                            data = json.loads(line)
+                                                                            
+                            if "message" in data and "content" in data["message"]:
+                                delta = data["message"]["content"]
+                                full_reply += delta
+                                thread_obj.chunk_received.emit(delta)
+                        except json.JSONDecodeError:
+                            pass                          
         else:
                                 
             error_msg = f"[act_trouble] 唔……头好痛……非常抱歉，我的头佩设备好像接收到了一个完全无法解析的指令（{api_type}）……我的思维暂时连不上了……是我哪里做错了吗？"

@@ -16,10 +16,6 @@ _collection = None
 _default_ef = None
 
 def _get_collection():
-    """
-    🚨 核心破局点 2：延迟实例化！
-    确保分配数据库指针的操作，只在调用它的那个子线程（大脑线程）里发生，解决 0xC0000409 报错！
-    """
     global _client, _collection, _default_ef
     if _collection is None:
         print("💭 [思绪浮现] 过去的记忆片段正在脑海中重组...")
