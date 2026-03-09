@@ -7,6 +7,11 @@
     <script src="https://cdn.jsdelivr.net/npm/pixi.js@6.5.2/dist/browser/pixi.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display/dist/cubism4.min.js"></script>
     <style>
+        :root {
+            --main-font-size: 16px; /* 默认 size 1 */
+            --sub-font-size: 14px;
+        }
+
         body { margin: 0; padding: 0; overflow: hidden; background-color: transparent; }
         canvas { display: block; }
 
@@ -25,7 +30,7 @@
             word-wrap: break-word;
             line-height: 1.5;
             font-family: 'Microsoft YaHei', sans-serif;
-            font-size: 14px;
+            font-size: var(--main-font-size);
             color: #333;
             box-shadow: 0px 4px 15px rgba(0,0,0,0.15);
             transition: opacity 0.3s;
@@ -72,6 +77,14 @@
             outline: none;
             width: 250px;
             backdrop-filter: blur(5px);
+
+            resize: none;
+            overflow-y: hidden;
+            box-sizing: border-box;
+            min-height: 40px;
+            max-height: 120px;
+            line-height: 20px;
+            display: block;
         }
         #chat-input::placeholder { color: rgba(255, 255, 255, 0.6); }
     </style>
@@ -80,9 +93,10 @@
 
     <div id="chat-bubble"></div>
     <div id="input-container">
-        <input type="text" id="chat-input" placeholder="对她说点什么... (Enter发送)" autocomplete="off" />
+        <textarea id="chat-input" placeholder="对她说点什么..." autocomplete="off" rows="1"></textarea>
     </div>
 
+    <audio id="romasha-audio" style="display:none;"></audio>
     <canvas id="canvas"></canvas>
 
     <script>
@@ -102,6 +116,20 @@
         let bubbleTimeout = null;
 
         let touchEnabled = true;
+
+        window.setBubbleSize = function(size) {
+            let root = document.documentElement;
+            if (size === 0) {
+                root.style.setProperty('--main-font-size', '14px');
+                root.style.setProperty('--sub-font-size', '12px');
+            } else if (size === 1) {
+                root.style.setProperty('--main-font-size', '16px');
+                root.style.setProperty('--sub-font-size', '14px');
+            } else if (size === 2) {
+                root.style.setProperty('--main-font-size', '18px');
+                root.style.setProperty('--sub-font-size', '16px');
+            }
+        };
 
         PIXI.live2d.Live2DModel.from('model/romasha_talk.model3.json').then(model => {
             app.stage.addChild(model);
@@ -123,6 +151,21 @@
                 if (targetBubbleY - chatBubble.offsetHeight < 10) targetBubbleY = chatBubble.offsetHeight + 10;
                 chatBubble.style.left = centerX + 'px';
                 chatBubble.style.top = targetBubbleY + 'px';
+
+                if (analyser && dataArray && window.romashaModel && !audioElement.paused) {
+                    analyser.getByteFrequencyData(dataArray);
+                    let sum = 0;
+                    for(let i = 0; i < dataArray.length; i++) {
+                        sum += dataArray[i];
+                    }
+                    let average = sum / dataArray.length;
+
+                    let mouthOpen = average / 80.0;
+                    if (mouthOpen > 1.0) mouthOpen = 1.0;
+                    if (mouthOpen < 0.05) mouthOpen = 0.0;
+
+                    window.romashaModel.internalModel.coreModel.setParameterValueById('ParamMouthOpenY', mouthOpen);
+                }
 
                 let bootOffset = bounds.height * 0.45;
                 let targetInputY = bounds.y + bounds.height + bootOffset + 15;
@@ -163,20 +206,73 @@
                 }
             };
 
+            const audioElement = document.getElementById('romasha-audio');
+            let audioCtx = null;
+            let analyser = null;
+            let dataArray = null;
+
+            window.playRomashaVoice = function(audioBase64) {
+                try {
+                    if (!audioCtx) {
+                        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                        analyser = audioCtx.createAnalyser();
+                        analyser.fftSize = 256;
+                        let source = audioCtx.createMediaElementSource(audioElement);
+                        source.connect(analyser);
+                        analyser.connect(audioCtx.destination);
+                        dataArray = new Uint8Array(analyser.frequencyBinCount);
+                    }
+
+                    audioElement.src = "data:audio/wav;base64," + audioBase64;
+
+                    audioElement.onended = function() {
+                        document.title = "EVENT:AUDIO_END";
+                    };
+
+                    audioElement.play().then(() => {
+                        if (audioCtx.state === 'suspended') audioCtx.resume();
+                    });
+                } catch (e) {
+                    console.log("声音传达似乎受到了阻碍...");
+                }
+            };
+
+            window.stopRomashaVoice = function() {
+                if (audioElement && !audioElement.paused) {
+                    audioElement.pause();
+                    audioElement.currentTime = 0;
+                }
+            };
+
             model.on('rightdown', (e) => {
                 inputContainer.classList.toggle('active');
                 if (inputContainer.classList.contains('active')) chatInput.focus();
             });
 
-            chatInput.addEventListener('keypress', function (e) {
-                if (e.key === 'Enter' && this.value.trim() !== '') {
-                    document.title = "CHAT:" + this.value.trim();
-                    this.value = '';
-                    inputContainer.classList.remove('active');
+            chatInput.addEventListener('input', function () {
+                this.style.height = '40px';
+                this.style.height = (this.scrollHeight) + 'px';
+
+                if (this.scrollHeight > 120) {
+                    this.style.overflowY = 'auto';
+                } else {
+                    this.style.overflowY = 'hidden';
                 }
             });
 
-            window.showBubble = function(text) {
+            chatInput.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    if (this.value.trim() !== '') {
+                        document.title = "CHAT:" + this.value.trim();
+                        this.value = '';
+                        inputContainer.classList.remove('active');
+                        this.style.height = '40px';
+                    }
+                }
+            });
+
+            window.showBubble = function(text, keepAlive = false) {
                 chatBubble.innerHTML = text;
                 chatBubble.style.opacity = 1;
 
@@ -184,10 +280,12 @@
 
                 if(bubbleTimeout) clearTimeout(bubbleTimeout);
 
-                let displayTime = Math.max(1000, text.length * 50);
-                bubbleTimeout = setTimeout(() => {
-                    chatBubble.style.opacity = 0;
-                }, displayTime);
+                if (!keepAlive) {
+                    let displayTime = Math.max(5000, htmlText.replace(/<[^>]+>/g, '').length * 80);
+                    bubbleTimeout = setTimeout(() => {
+                        chatBubble.style.opacity = 0;
+                    }, displayTime);
+                }
             };
 
             let isDragging = false;
@@ -240,7 +338,6 @@
                         bodyPart = "leg";
                     }
 
-
                     if (relY > 0.69 && relY < 0.78) {
                         if (relX < 0.37) bodyPart = "hand_right";
                         if (relX > 0.57) bodyPart = "hand_left";
@@ -250,6 +347,7 @@
                                     // `<span style="color:blue">Y轴: ${relY.toFixed(3)}</span><br>` +
                                     // `<span style="color:#ffb6c1; font-weight:bold;">判定部位: ${bodyPart}</span>`;
                     // window.showBubble(debugInfo);
+
 
                     document.title = "TOUCH:" + bodyPart;
                 }

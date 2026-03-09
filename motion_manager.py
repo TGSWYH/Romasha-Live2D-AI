@@ -1,5 +1,8 @@
+                   
 import random
 
+                            
+                                                      
 MOTIONS = {
     "amazing": {"index": 0, "desc": "吃惊后退半步，手抬起捂嘴，像是在说“诶？？！”"},
     "angry": {"index": 1, "desc": "义正言辞的拒绝，带有愤怒和坚守底线的感觉"},
@@ -38,17 +41,26 @@ MOTIONS = {
 
 
 def get_motion_index(action_name):
+    """
+    根据动作名称获取对应的索引号。如果找不到，默认返回 'talk' (24) 的索引。
+    """
     action_name = action_name.lower()
 
+                     
     if action_name in MOTIONS:
         return MOTIONS[action_name]["index"]
 
-    if action_name == "freeze_silent":
-        return MOTIONS["wait"]["index"]
+                      
 
+                             
+    if action_name == "freeze_silent":
+        return MOTIONS["wait"]["index"]                                
+
+                                  
     elif action_name == "freeze_mutter":
         return MOTIONS["wait_haji"]["index"]
 
+                             
 
     print(f"警告: 未找到动作指令 {action_name}，默认返回 talk")
     return MOTIONS["talk"]["index"]

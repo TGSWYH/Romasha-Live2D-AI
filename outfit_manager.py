@@ -1,5 +1,7 @@
+                   
 import random
 
+                          
 _current_outfit = None
 _current_hair = None
 
@@ -31,8 +33,8 @@ OUTFITS = {
     "uniform_dress": {"formchange": 1.0},
     "sleepwear": {"formchange": -1.0, "negligeeONOFF": 1.0, "negligeeinnerONOFF": 0.0},
     "swimsuit": {"formchange": -1.0, "mizugiONOFF": 1.0, "mizugiSUKE": 0.0, "hearchange": HAIRSTYLES["bun"]},
-    "ethnic_wear": {"formchange": -1.0, "minzokucloth": 1.0, "FudeONOFF": 0.0},
-    "ethnic_cloak": {"formchange": -1.0, "minzokucloth": 1.0, "FudeONOFF": 1.0},
+    "ethnic_wear": {"formchange": -1.0, "minzokucloth": 1.0, "FudeONOFF": 0.0},           
+    "ethnic_cloak": {"formchange": -1.0, "minzokucloth": 1.0, "FudeONOFF": 1.0},         
     "towel": {"formchange": -1.0, "bath_taol_ON": 1.0, "buraONFOFF": 30.0, "pantsuONFOFF": random.choice([0.0, 30.0])},
     "bunny": {"formchange": -1.0, "bunny": 1.0}
 }
@@ -41,6 +43,7 @@ OUTFITS = {
 def get_outfit_params(outfit_name, hair_style=None):
     global _current_outfit, _current_hair
 
+                   
     is_new_outfit = (_current_outfit != outfit_name)
     _current_outfit = outfit_name
 
@@ -49,14 +52,18 @@ def get_outfit_params(outfit_name, hair_style=None):
     if outfit_name in OUTFITS:
         params_to_apply.update(OUTFITS[outfit_name])
 
+                
     if "hearchange" not in params_to_apply:
         if hair_style in HAIRSTYLES:
+                      
             _current_hair = hair_style
             params_to_apply["hearchange"] = HAIRSTYLES[_current_hair]
         else:
+                                         
             if _current_hair is None or is_new_outfit:
                 _current_hair = random.choices(["loose", "bun"], weights=[85, 15], k=1)[0]
 
+                                         
             params_to_apply["hearchange"] = HAIRSTYLES[_current_hair]
 
     return params_to_apply

@@ -1,19 +1,28 @@
+                   
 import time
 
+                   
+                                                               
 import onnxruntime
 import chromadb
 from chromadb.utils import embedding_functions
 
-print(f"✅ 底层 AI 引擎已预加载... onnxruntime版本: {onnxruntime.__version__}")
+print(f"✅ [基地底层架构]: 生物神经网络已激活... 突触onnxruntime连接版本: {onnxruntime.__version__}")
+print(f"🌟 [命运齿轮] 正在尝试建立与那个世界的连接... (核心运转正常)")
 
+            
 _client = None
 _collection = None
 _default_ef = None
 
 def _get_collection():
+    """
+    🚨 核心破局点 2：延迟实例化！
+    确保分配数据库指针的操作，只在调用它的那个子线程（大脑线程）里发生，解决 0xC0000409 报错！
+    """
     global _client, _collection, _default_ef
     if _collection is None:
-        print("🧠 大脑线程正在接管记忆中枢...")
+        print("💭 [思绪浮现] 过去的记忆片段正在脑海中重组...")
         _default_ef = embedding_functions.DefaultEmbeddingFunction()
         _client = chromadb.PersistentClient(path="./romasha_memory_db")
         _collection = _client.get_or_create_collection(
@@ -32,9 +41,9 @@ def add_memory(user_text, ai_text):
             metadatas=[{"timestamp": timestamp}],
             ids=[f"mem_{timestamp}"]
         )
-        print(f"💾 [记忆已保存]: {user_text[:15]}...")
+        print(f"💾 [羁绊加深]: 刚才的对话已悄悄留在她的心底: {user_text[:15]}...")
     except Exception as e:
-        print(f"⚠️ 记忆写入失败: {e}")
+        print(f"⚠️ [记忆模糊]: 这一段记忆似乎像晨雾一样消散了... ({e})")
 
 def retrieve_relevant_memories(current_query, n_results=3):
     col = _get_collection()
@@ -46,18 +55,18 @@ def retrieve_relevant_memories(current_query, n_results=3):
         if not documents: return ""
         return "\n---\n".join(documents)
     except Exception as e:
-        print(f"⚠️ 记忆检索失败: {e}")
+        print(f"⚠️ [回忆受阻]: 她努力回想，但记忆有些模糊...")
         return ""
 
 def clear_all_memories():
     global _client, _collection, _default_ef
     try:
-        col = _get_collection()
+        col = _get_collection()         
         _client.delete_collection(name="romasha_memories")
         _collection = _client.get_or_create_collection(
             name="romasha_memories",
             embedding_function=_default_ef
         )
-        print("\n🌀 [世界线变动] 所有的过往记忆已彻底清空，迎来了崭新的相遇。")
+        print("\n🌀 [时光倒流] 所有相处的点滴如沙般流逝，你们回到了最初那份未知的初见。")
     except Exception as e:
-        print(f"⚠️ 重置失败: {e}")
+        print(f"⚠️ [命运纠缠]: 过去的痕迹似乎难以抹除... ({e})")

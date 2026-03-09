@@ -1,3 +1,4 @@
+                 
 import sys
 import os
 from PyQt5.QtCore import Qt, QUrl
@@ -24,6 +25,9 @@ class MotionTester(QMainWindow):
         self.setCentralWidget(central_widget)
         main_layout = QHBoxLayout(central_widget)
 
+                                                    
+                         
+                                                    
         self.browser = QWebEngineView()
         settings = self.browser.settings()
         settings.setAttribute(QWebEngineSettings.LocalContentCanAccessFileUrls, True)
@@ -35,10 +39,14 @@ class MotionTester(QMainWindow):
         self.browser.load(QUrl.fromLocalFile(html_path))
         main_layout.addWidget(self.browser, stretch=2)
 
+                                                    
+                                
+                                                    
         self.tabs = QTabWidget()
         self.tabs.setStyleSheet("font-size: 13px;")
         main_layout.addWidget(self.tabs, stretch=1)
 
+                              
         self.tab_motion = QWidget()
         motion_layout = QVBoxLayout(self.tab_motion)
 
@@ -59,21 +67,25 @@ class MotionTester(QMainWindow):
 
         self.tabs.addTab(self.tab_motion, "🏃 动作")
 
+                              
         self.tab_outfit = QWidget()
         outfit_layout = QVBoxLayout(self.tab_outfit)
 
+              
         outfit_label = QLabel("<b>👗 服装切换 (Outfits)</b>")
         outfit_layout.addWidget(outfit_label)
         self.outfit_list = QListWidget()
         self.outfit_list.itemClicked.connect(self.on_outfit_clicked)
+                                
         for outfit_name in outfit_manager.OUTFITS.keys():
             self.outfit_list.addItem(QListWidgetItem(f"[{outfit_name}]"))
         outfit_layout.addWidget(self.outfit_list)
 
+              
         hair_label = QLabel("<b>💇‍♀️ 发型切换 (Hairstyles)</b>")
         outfit_layout.addWidget(hair_label)
         self.hair_list = QListWidget()
-        self.hair_list.setFixedHeight(80)
+        self.hair_list.setFixedHeight(80)             
         self.hair_list.itemClicked.connect(self.on_hair_clicked)
         for hair_name in outfit_manager.HAIRSTYLES.keys():
             self.hair_list.addItem(QListWidgetItem(f"[{hair_name}]"))
@@ -81,9 +93,11 @@ class MotionTester(QMainWindow):
 
         self.tabs.addTab(self.tab_outfit, "👗 换装")
 
+                                
         self.tab_param = QWidget()
         param_layout = QVBoxLayout(self.tab_param)
 
+                           
         cheek_group = QGroupBox("😊 脸红程度 (ParamCheek)")
         cheek_layout = QVBoxLayout()
         self.cheek_slider = QSlider(Qt.Horizontal)
@@ -93,6 +107,7 @@ class MotionTester(QMainWindow):
         cheek_group.setLayout(cheek_layout)
         param_layout.addWidget(cheek_group)
 
+                      
         angry_group = QGroupBox("💢 生气程度 (angry)")
         angry_layout = QVBoxLayout()
         self.angry_slider = QSlider(Qt.Horizontal)
@@ -102,19 +117,21 @@ class MotionTester(QMainWindow):
         angry_group.setLayout(angry_layout)
         param_layout.addWidget(angry_group)
 
+              
         clear_emotion_btn = QPushButton("😶 一键消除面部余温")
         clear_emotion_btn.setMinimumHeight(40)
         clear_emotion_btn.clicked.connect(self.clear_emotions)
         param_layout.addWidget(clear_emotion_btn)
 
-        param_layout.addStretch()
+        param_layout.addStretch()           
         self.tabs.addTab(self.tab_param, "😳 面部参数")
 
+                                                    
     def on_html_signal(self, title):
         if title == "EVENT:READY":
             self.is_ready = True
             self.setWindowTitle("Romasha 物理调试控制台 - ✅ 模型已就绪")
-            # 默认状态预载
+                    
             self.play_motion(motion_manager.get_motion_index('talk'))
             self.apply_outfit('uniform_tight')
             print("✨ 前端引擎加载完毕！")
@@ -136,6 +153,7 @@ class MotionTester(QMainWindow):
         if not self.is_ready: return
         hair_name = item.text().strip('[]')
         print(f"💇‍♀️ 切换发型: {hair_name}")
+                             
         current_outfit = outfit_manager._current_outfit if outfit_manager._current_outfit else "uniform_tight"
         params = outfit_manager.get_outfit_params(current_outfit, hair_name)
         for param_id, val in params.items():

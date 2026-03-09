@@ -1,3 +1,4 @@
+                       
 import memory_manager
 import sys
 import os
@@ -8,6 +9,9 @@ import shutil
 import gc
 import datetime
 
+                                            
+                          
+                                            
 if os.path.exists("./romasha_test_sandbox_db"):
     try:
         shutil.rmtree("./romasha_test_sandbox_db")
@@ -22,19 +26,26 @@ from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QL
                              QSlider, QSpinBox, QCheckBox, QSplitter, QComboBox,
                              QScrollArea, QPlainTextEdit, QSizePolicy, QGridLayout)
 from PyQt5.QtWebEngineWidgets import QWebEngineView, QWebEngineSettings
-from PyQt5.QtGui import QTextCursor
-from openai import OpenAI
+from PyQt5.QtGui import QTextCursor              
+from openai import OpenAI                
 
+                                            
+                  
+                                            
 if hasattr(Qt, 'AA_EnableHighDpiScaling'):
     QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
 if hasattr(Qt, 'AA_UseHighDpiPixmaps'):
     QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
 
+          
 import outfit_manager
 import motion_manager
 import llm_brain
 import world_info
 
+                                            
+                    
+                                            
 sandbox_client = memory_manager.chromadb.PersistentClient(path="./romasha_test_sandbox_db")
 sandbox_ef = memory_manager.embedding_functions.DefaultEmbeddingFunction()
 sandbox_collection = sandbox_client.get_or_create_collection(
@@ -60,6 +71,9 @@ def mocked_add_memory(user_text, ai_text):
 memory_manager.add_memory = mocked_add_memory
 
 
+                                            
+              
+                                            
 class VirtualTrackPad(QLabel):
     def __init__(self, parent_window):
         super().__init__()
@@ -84,6 +98,9 @@ class VirtualTrackPad(QLabel):
         self.parent_window.exec_js("window.updateGlobalMouse(960, 540);")
 
 
+                                            
+                               
+                                            
 class ApiTestWorker(QThread):
     chunk_received = pyqtSignal(str)
     finished = pyqtSignal(str)
@@ -100,6 +117,7 @@ class ApiTestWorker(QThread):
 
     def run(self):
         try:
+                                                         
             messages = []
             if self.system_prompt.strip():
                 messages.append({"role": "system", "content": self.system_prompt})
@@ -155,19 +173,24 @@ class ApiTestWorker(QThread):
             self.error.emit(str(e))
 
 
+                                            
+       
+                                            
 class SystemEngineTester(QMainWindow):
     def __init__(self):
         super().__init__()
 
         self.target_display_text = ""
         self.current_display_text = ""
+                               
         self.current_context_html = "<span style='color:#ccc;'><i>(系统核心已唤醒...)</i></span><br>"
         self.processed_tags = set()
 
+                         
         self.tag_execution_queue = []
         self.tag_timer = QTimer(self)
         self.tag_timer.timeout.connect(self.process_next_tag)
-        self.tag_timer.start(100)
+        self.tag_timer.start(100)                     
 
         self.script_queue = []
         self.is_script_running = False
@@ -182,11 +205,17 @@ class SystemEngineTester(QMainWindow):
         self.typewriter_timer.timeout.connect(self.typewriter_tick)
         self.typewriter_timer.start(40)
 
+                             
+        self.static_mood_timer = QTimer(self)
+        self.static_mood_timer.setSingleShot(True)
+        self.static_mood_timer.timeout.connect(self.resolve_static_mood_mock)
+
     def init_ui(self):
         self.setWindowFlags(Qt.WindowStaysOnTopHint)
         self.resize(1600, 1000)
         self.setWindowTitle("Romasha 终极系统测试控制台 V4.0 (高分屏自适应/防冲突版) 🛠️")
 
+                               
         self.setStyleSheet("""
             * { font-family: 'Microsoft YaHei', 'Segoe UI', sans-serif; font-size: 14px; }
             QPushButton { padding: 8px 12px; border-radius: 4px; background-color: #ecf0f1; border: 1px solid #bdc3c7; }
@@ -199,14 +228,18 @@ class SystemEngineTester(QMainWindow):
         main_layout = QHBoxLayout(central_widget)
         self.setCentralWidget(central_widget)
 
+                           
         self.browser = QWebEngineView()
         settings = self.browser.settings()
         settings.setAttribute(QWebEngineSettings.LocalContentCanAccessFileUrls, True)
         self.browser.page().setBackgroundColor(Qt.transparent)
+                       
+        self.browser.titleChanged.connect(self.on_html_signal)
         html_path = os.path.abspath(os.path.join(os.path.dirname(__file__), 'web', 'index.html'))
         self.browser.load(QUrl.fromLocalFile(html_path))
         main_layout.addWidget(self.browser, stretch=7)
 
+                            
         right_panel = QSplitter(Qt.Vertical)
 
         self.tabs = QTabWidget()
@@ -214,6 +247,7 @@ class SystemEngineTester(QMainWindow):
         self.setup_tabs()
         right_panel.addWidget(self.tabs)
 
+               
         log_group = QGroupBox("🖥️ 底层 JS Interface 实时监听器")
         log_layout = QVBoxLayout()
         self.param_log = QListWidget()
@@ -240,7 +274,9 @@ class SystemEngineTester(QMainWindow):
         self.init_memory_tab()
         self.init_api_sandbox_tab()
 
-
+                                                
+                        
+                                                
     def init_stream_tab(self):
         tab = QWidget()
         layout = QVBoxLayout(tab)
@@ -290,29 +326,26 @@ class SystemEngineTester(QMainWindow):
 
         self.tabs.addTab(tab, "📡 串流弹幕")
 
-
+                                                
+                       
+                                                
     def _get_slider_config(self, param_id):
         integer_params = ['hearchange', 'buraONFOFF', 'pantsuONFOFF', 'minzokucloth',
                             'bunny', 'mizugiONOFF', 'bath_taol_ON', 'taolONOFF',
                             'gaze_ON', 'underhear', 'nipplepierce']
-
-        if param_id == 'formchange':
-            return (-1, 1, 1)
-        elif param_id in integer_params:
-            return (0, 30, 1)
+        if param_id == 'formchange': return (-1, 1, 1)
+        elif param_id in integer_params: return (0, 30, 1)
         elif 'Angle' in param_id or 'move' in param_id.lower() or 'yure' in param_id.lower() \
                 or param_id.endswith('X') or param_id.endswith('Y') or param_id.endswith('Z') \
                 or 'X2' in param_id or param_id in ['ParamEyeBallX', 'ParamEyeBallY']:
             return (-300, 300, 10)
         elif param_id in ['ParamBreath', 'eyeOpenL', 'eyeOpenR', 'ParamMouthOpenY']:
             return (0, 10, 10)
-        else:
-            return (0, 10, 10)
+        else: return (0, 10, 10)
 
     def init_matrix_tab(self):
         tab = QWidget()
         layout = QVBoxLayout(tab)
-
         layout.addWidget(QLabel("<b>🛠️ Live2D 底层全变量直控矩阵 (116项参数全量同步)：</b>"))
 
         scroll = QScrollArea()
@@ -325,32 +358,22 @@ class SystemEngineTester(QMainWindow):
 
         romasha_params_dict = {
             "👗 パーツの切り替え (部件切换)": [
-                ("formchange", "换装"), ("negligeeONOFF", "睡袍换装"),
-                ("negligeeinnerONOFF", "睡袍内衣切换"),
-                ("leotard_ON", "紧身衣换装"), ("mizugiONOFF", "泳装换装"),
-                ("mizugiSUKE", "泳装湿透表现"),
-                ("minzokucloth", "民族服装换装"), ("minzoku_bust_ON", "民族胸布换装"),
-                ("minzoku_westONOFF", "民族腰布开关"),
-                ("FudeONOFF", "兜帽开关"), ("fundoshi_ONOFF", "兜裆布开关"),
-                ("bunny", "兔女郎套装换装"),
-                ("bunnycuffsONOFF", "兔女郎袖口开关"), ("bunny_bust_porori", "兔女郎胸部掀起"),
-                ("bunnybodyONOFF", "兔女郎身体开关"),
-                ("bunnyamiamiONOFF", "兔女郎网袜换装"), ("bunnyneckONOFF", "兔女郎领结开关"),
-                ("bunnyearONOFF", "兔女郎耳朵开关"),
-                ("bath_taol_ON", "浴巾切换"), ("bath_taol_fall", "浴巾滑落"),
-                ("taolONOFF", "毛巾切换"),
+                ("formchange", "换装"), ("negligeeONOFF", "睡袍换装"), ("negligeeinnerONOFF", "睡袍内衣切换"),
+                ("leotard_ON", "紧身衣换装"), ("mizugiONOFF", "泳装换装"), ("mizugiSUKE", "泳装湿透表现"),
+                ("minzokucloth", "民族服装换装"), ("minzoku_bust_ON", "民族胸布换装"), ("minzoku_westONOFF", "民族腰布开关"),
+                ("FudeONOFF", "兜帽开关"), ("fundoshi_ONOFF", "兜裆布开关"), ("bunny", "兔女郎套装换装"),
+                ("bunnycuffsONOFF", "兔女郎袖口开关"), ("bunny_bust_porori", "兔女郎胸部掀起"), ("bunnybodyONOFF", "兔女郎身体开关"),
+                ("bunnyamiamiONOFF", "兔女郎网袜换装"), ("bunnyneckONOFF", "兔女郎领结开关"), ("bunnyearONOFF", "兔女郎耳朵开关"),
+                ("bath_taol_ON", "浴巾切换"), ("bath_taol_fall", "浴巾滑落"), ("taolONOFF", "毛巾切换"),
                 ("gaze_ON", "毛巾变更"), ("taolnure", "毛巾湿透"), ("underhear", "阴毛切换"),
-                ("milk_on", "母乳切换"), ("milk_move", "母乳流动"),
-                ("nipplepierce", "乳环切换"),
+                ("milk_on", "母乳切换"), ("milk_move", "母乳流动"), ("nipplepierce", "乳环切换"),
                 ("bigbust", "巨乳切换"), ("tatuONOFF", "淫纹切换"), ("tatuCHIKACHIKA", "淫纹闪烁"),
                 ("pantsuONFOFF", "内裤切换"), ("seieki_ON", "精液显示"), ("buraONFOFF", "胸罩切换")
             ],
             "😊 表情 (面部与神态)": [
                 ("ParamAngleX", "脸部角度 X"), ("ParamAngleY", "脸部角度 Y"), ("ParamAngleZ", "脸部角度 Z"),
-                ("highlightONOFF", "高光开关"), ("highlightR_yureX", "右高光摇晃X"),
-                ("highlightR_yureY", "右高光摇晃Y"),
-                ("matugeL_yure", "左睫毛摇晃"), ("matugeR_yure", "右睫毛摇晃"),
-                ("highlightL_yureX", "左高光摇晃X"),
+                ("highlightONOFF", "高光开关"), ("highlightR_yureX", "右高光摇晃X"), ("highlightR_yureY", "右高光摇晃Y"),
+                ("matugeL_yure", "左睫毛摇晃"), ("matugeR_yure", "右睫毛摇晃"), ("highlightL_yureX", "左高光摇晃X"),
                 ("highlightL_yureY", "左高光摇晃Y"), ("eyeOpenL", "左眼 开闭"), ("eyeOpenR", "右眼 开闭"),
                 ("ParamEyeBallX", "眼球 X"), ("ParamEyeBallY", "眼球 Y"), ("hitomi_from", "瞳孔变形"),
                 ("smile_eye", "喜悦眼表现"), ("ParamBrowLAngle", "左眉 角度"), ("ParamBrowRAngle", "右眉 角度"),
@@ -363,54 +386,36 @@ class SystemEngineTester(QMainWindow):
             ],
             "💪 腕差分 (手臂姿势切换)": [
                 ("elboR_ONOFF", "右肘开关"), ("elboL_ONOFF", "左肘开关"), ("armL_top_ONOFF", "左上臂开关"),
-                ("nadenadeleft", "抚摸放下手臂开关"), ("nadehand_angle", "抚摸手的旋转"),
-                ("nadenadeleft_angle", "抚摸手臂的旋转"),
-                ("nadenadeleft_mage", "抚摸手的弯曲"), ("arm_device_ONOFF", "设备手臂开关"),
-                ("arm_device_allangle", "设备手臂整体旋转"),
-                ("hand_device_angle", "设备手腕旋转"),
-                ("hand_device_yure_hitosashi", "设备食指摇晃"),
-                ("hand_device_nigiri", "设备手指握紧"),
-                ("arm_device_angle", "设备手肘旋转"), ("arm_device_yure", "设备手臂摇晃"),
-                ("attentionright", "注意手臂开关"),
-                ("attention_angle", "注意手臂旋转"), ("attention_hand_angle", "注意手的旋转"),
-                ("attention_hand_mage", "注意手的弯曲"),
-                ("attention_yubi_mage", "注意食指的弯曲"), ("amazingrightONFOFF", "惊讶手臂开关"),
-                ("amazing_arm_angle", "惊讶手臂旋转"),
+                ("nadenadeleft", "抚摸放下手臂开关"), ("nadehand_angle", "抚摸手的旋转"), ("nadenadeleft_angle", "抚摸手臂的旋转"),
+                ("nadenadeleft_mage", "抚摸手的弯曲"), ("arm_device_ONOFF", "设备手臂开关"), ("arm_device_allangle", "设备手臂整体旋转"),
+                ("hand_device_angle", "设备手腕旋转"), ("hand_device_yure_hitosashi", "设备食指摇晃"), ("hand_device_nigiri", "设备手指握紧"),
+                ("arm_device_angle", "设备手肘旋转"), ("arm_device_yure", "设备手臂摇晃"), ("attentionright", "注意手臂开关"),
+                ("attention_angle", "注意手臂旋转"), ("attention_hand_angle", "注意手的旋转"), ("attention_hand_mage", "注意手的弯曲"),
+                ("attention_yubi_mage", "注意食指的弯曲"), ("amazingrightONFOFF", "惊讶手臂开关"), ("amazing_arm_angle", "惊讶手臂旋转"),
                 ("amazing_hand_angle", "惊讶手的旋转"), ("amazing_hand_mage", "惊讶手的弯曲")
             ],
             "🌬️ パーツの揺れ (物理与抖动)": [
                 ("hearchange", "发型切换"), ("aho_yure", "呆毛摇晃"), ("ribon_yure", "蝴蝶结摇晃"),
-                ("tie_yure", "领带摇晃"), ("skirt_yure", "裙子摇晃"),
-                ("minzoku_bigbust_yure", "民族胸布巨乳摇晃"),
-                ("minzoku_bust_R", "民族胸布摇晃R"), ("minzoku_bust_L", "民族胸布摇晃L"),
-                ("minzoku_hudo_yure", "民族兜帽摇晃"),
-                ("neglige_ribon_yure", "睡袍蝴蝶结摇晃"),
-                ("negulige_skirt_yure", "睡袍裙子摇晃"),
-                ("ParamHairFront2", "头发摇晃 前1"), ("ParamHairFront3", "头发摇晃 前2"),
-                ("ParamHairFront4", "头发摇晃 前3"),
-                ("ParamHairFront5", "头发摇晃 前4"), ("ParamHairFront6", "头发摇晃 前5"),
-                ("ParamHairFront7", "头发摇晃 前6"),
-                ("ParamHairFront8", "头发摇晃 前7"), ("ParamHairFront9", "头发摇晃 前8"),
-                ("ParamHairBack", "头发摇晃 后"),
+                ("tie_yure", "领带摇晃"), ("skirt_yure", "裙子摇晃"), ("minzoku_bigbust_yure", "民族胸布巨乳摇晃"),
+                ("minzoku_bust_R", "民族胸布摇晃R"), ("minzoku_bust_L", "民族胸布摇晃L"), ("minzoku_hudo_yure", "民族兜帽摇晃"),
+                ("neglige_ribon_yure", "睡袍蝴蝶结摇晃"), ("negulige_skirt_yure", "睡袍裙子摇晃"),
+                ("ParamHairFront2", "头发摇晃 前1"), ("ParamHairFront3", "头发摇晃 前2"), ("ParamHairFront4", "头发摇晃 前3"),
+                ("ParamHairFront5", "头发摇晃 前4"), ("ParamHairFront6", "头发摇晃 前5"), ("ParamHairFront7", "头发摇晃 前6"),
+                ("ParamHairFront8", "头发摇晃 前7"), ("ParamHairFront9", "头发摇晃 前8"), ("ParamHairBack", "头发摇晃 后"),
                 ("ParamHairSide", "头发摇晃 侧"), ("ParamHairSide2", "头发摇晃 侧2"), ("mitsuami_yure", "麻花辫摇晃"),
-                ("sidetale_yure", "头发摇晃 侧马尾"), ("pony_tale", "头发摇晃 马尾辫"),
-                ("longhear_yure", "头发摇晃 长发")
+                ("sidetale_yure", "头发摇晃 侧马尾"), ("pony_tale", "头发摇晃 马尾辫"), ("longhear_yure", "头发摇晃 长发")
             ],
             "🏃 体の動き (身体躯干移动)": [
                 ("all", "整体调整"), ("allmoveX", "整体移动X"), ("allmoveY", "整体移动Y"),
-                ("bust_bura__X", "胸罩胸部动作X"), ("bust_bura_Y", "胸罩胸部动作Y"), ("bustX", "胸部动作X"),
-                ("bust_Y", "胸部动作Y"),
+                ("bust_bura__X", "胸罩胸部动作X"), ("bust_bura_Y", "胸罩胸部动作Y"), ("bustX", "胸部动作X"), ("bust_Y", "胸部动作Y"),
                 ("bigbustX", "巨乳动作X"), ("bigbustY", "巨乳动作Y"), ("ParamBodyAngleX", "身体旋转 X"),
-                ("ParamBodyAngleX2", "身体旋转 X2"), ("ParamBodyAngleY", "身体旋转 Y"),
-                ("ParamBodyAngleZ", "身体旋转 Z"),
+                ("ParamBodyAngleX2", "身体旋转 X2"), ("ParamBodyAngleY", "身体旋转 Y"), ("ParamBodyAngleZ", "身体旋转 Z"),
                 ("legR_angle", "右腿旋转"), ("legL_angle", "左腿旋转"), ("handR_move", "右手动作"),
                 ("handR_angle", "右手旋转"), ("armR_angle", "右臂旋转"), ("elboR_angle", "右肘旋转"),
                 ("elboR_mage", "右肘弯曲"), ("armR_mage", "右臂弯曲"), ("handL_move", "左手动作"),
                 ("handL_angle", "左手旋转"), ("elboL_mage", "左肘弯曲"), ("arm_L_mageX", "左臂弯曲X"),
-                ("arm_L_mageY", "左臂弯曲Y"), ("armL_angle", "左臂旋转"),
-                ("skirt_makure", "掀裙子切换"),
-                ("skirt_castoff", "裙子消失"), ("skiry_custm_ON", "改造裙子显示"),
-                ("mekure", "掀裙子"),
+                ("arm_L_mageY", "左臂弯曲Y"), ("armL_angle", "左臂旋转"), ("skirt_makure", "掀裙子切换"),
+                ("skirt_castoff", "裙子消失"), ("skiry_custm_ON", "改造裙子显示"), ("mekure", "掀裙子"),
                 ("ParamBreath", "呼吸")
             ]
         }
@@ -423,7 +428,6 @@ class SystemEngineTester(QMainWindow):
             for param_id, param_name_cn in params_list:
                 lbl = QLabel(f"{param_name_cn}\n({param_id})")
                 lbl.setStyleSheet("font-size: 11px; color: #444;")
-
                 slider = QSlider(Qt.Horizontal)
                 s_min, s_max, s_div = self._get_slider_config(param_id)
                 slider.setRange(s_min, s_max)
@@ -459,6 +463,9 @@ class SystemEngineTester(QMainWindow):
 
         self.tabs.addTab(tab, "🛠️ 全量参数矩阵")
 
+                                                
+                    
+                                                
     def init_time_tab(self):
         tab = QWidget()
         layout = QVBoxLayout(tab)
@@ -466,25 +473,15 @@ class SystemEngineTester(QMainWindow):
         group_custom = QGroupBox("⏳ 精确时空跃迁 (测试生物钟延迟换装)")
         vbox1 = QVBoxLayout()
         hbox = QHBoxLayout()
-        self.month_spin = QSpinBox();
-        self.month_spin.setRange(1, 12);
-        self.month_spin.setValue(6)
-        self.day_spin = QSpinBox();
-        self.day_spin.setRange(1, 31);
-        self.day_spin.setValue(15)
-        self.hour_spin = QSpinBox();
-        self.hour_spin.setRange(0, 23);
-        self.hour_spin.setValue(12)
+        self.month_spin = QSpinBox(); self.month_spin.setRange(1, 12); self.month_spin.setValue(6)
+        self.day_spin = QSpinBox(); self.day_spin.setRange(1, 31); self.day_spin.setValue(15)
+        self.hour_spin = QSpinBox(); self.hour_spin.setRange(0, 23); self.hour_spin.setValue(12)
         btn_jump = QPushButton("🚀 强制跃迁")
-        btn_jump.clicked.connect(
-            lambda: self.simulate_time(self.month_spin.value(), self.day_spin.value(), self.hour_spin.value()))
+        btn_jump.clicked.connect(lambda: self.simulate_time(self.month_spin.value(), self.day_spin.value(), self.hour_spin.value()))
 
-        hbox.addWidget(QLabel("月:"));
-        hbox.addWidget(self.month_spin)
-        hbox.addWidget(QLabel("日:"));
-        hbox.addWidget(self.day_spin)
-        hbox.addWidget(QLabel("时:"));
-        hbox.addWidget(self.hour_spin)
+        hbox.addWidget(QLabel("月:")); hbox.addWidget(self.month_spin)
+        hbox.addWidget(QLabel("日:")); hbox.addWidget(self.day_spin)
+        hbox.addWidget(QLabel("时:")); hbox.addWidget(self.hour_spin)
         hbox.addWidget(btn_jump)
         vbox1.addLayout(hbox)
 
@@ -517,6 +514,9 @@ class SystemEngineTester(QMainWindow):
 
         self.tabs.addTab(tab, "⏳ 时空状态")
 
+                                                
+                      
+                                                
     def init_vision_tab(self):
         tab = QWidget()
         layout = QVBoxLayout(tab)
@@ -556,14 +556,16 @@ class SystemEngineTester(QMainWindow):
             grid.addWidget(btn, row, col)
             col += 1
             if col > 3:
-                col = 0;
-                row += 1
+                col = 0; row += 1
 
         group_touch.setLayout(grid)
         layout.addWidget(group_touch, stretch=1)
 
         self.tabs.addTab(tab, "🖱️ 互动防线")
 
+                                                
+                      
+                                                
     def init_sequencer_tab(self):
         tab = QWidget()
         layout = QVBoxLayout(tab)
@@ -589,11 +591,13 @@ class SystemEngineTester(QMainWindow):
         btn_stop.setStyleSheet("background-color: #c0392b; color: white;")
         btn_stop.clicked.connect(self.trigger_interrupt)
 
-        hbox.addWidget(btn_run);
-        hbox.addWidget(btn_stop)
+        hbox.addWidget(btn_run); hbox.addWidget(btn_stop)
         layout.addLayout(hbox)
         self.tabs.addTab(tab, "🎬 剧本推演")
 
+                                                
+                    
+                                                
     def init_memory_tab(self):
         tab = QWidget()
         layout = QVBoxLayout(tab)
@@ -612,7 +616,7 @@ class SystemEngineTester(QMainWindow):
         btn_read_sandbox.clicked.connect(lambda: self.refresh_memory(mode="sandbox"))
 
         hbox_controls.addWidget(btn_read_real)
-        hbox_controls.addWidget(btn_copy_real) # 新增拷贝按钮
+        hbox_controls.addWidget(btn_copy_real)
         hbox_controls.addWidget(btn_read_sandbox)
         layout.addLayout(hbox_controls)
 
@@ -635,6 +639,9 @@ class SystemEngineTester(QMainWindow):
 
         self.tabs.addTab(tab, "🧠 记忆手术")
 
+                                                
+                                
+                                                
     def init_api_sandbox_tab(self):
         tab = QWidget()
         layout = QVBoxLayout(tab)
@@ -734,6 +741,7 @@ class SystemEngineTester(QMainWindow):
 
         self.tabs.addTab(tab, "📡 提词探针")
 
+                                                     
 
     def log_param(self, msg):
         self.param_log.insertItem(0, msg)
@@ -746,17 +754,13 @@ class SystemEngineTester(QMainWindow):
         self.log_param(f"➤ JS: {param_id} -> {value}")
         self.exec_js(f"window.setRomashaParam('{param_id}', {value});")
 
+                    
     def matrix_param_changed(self, param, slider_value, val_label=None):
-        """处理矩阵面板的数值改变，按比例还原后发送给 JS"""
         div = self.param_dividers.get(param, 10.0)
         val = slider_value / float(div)
-
         if val_label:
-            if div > 1:
-                val_label.setText(f"{val:.1f}")
-            else:
-                val_label.setText(f"{int(val)}")
-
+            if div > 1: val_label.setText(f"{val:.1f}")
+            else: val_label.setText(f"{int(val)}")
         self.set_parameter(param, val)
 
     def reset_matrix_params(self):
@@ -776,12 +780,31 @@ class SystemEngineTester(QMainWindow):
                 slider.setValue(0)
                 self.set_parameter(p, 0.0)
 
-
         for slider in self.param_sliders.values():
             slider.blockSignals(False)
 
         self.log_param("🔄 物理矩阵 116 项全量参数已被强制重置恢复。")
 
+    def on_html_signal(self, title):
+        if title == "EVENT:READY":
+            self.log_param("🚀 收到前端就绪信号，正在应用初始外观设定...")
+            QTimer.singleShot(500, self.apply_startup_state)
+
+    def apply_startup_state(self):
+        self.log_param("👗 自动穿戴: 连衣制服(uniform_dress) + 散发(loose)")
+        params = outfit_manager.get_outfit_params("uniform_dress", "loose")
+        for p, v in params.items(): self.set_parameter(p, v)
+
+        for p, slider in self.param_sliders.items():
+            slider.blockSignals(True)
+            if p in params:
+                div = self.param_dividers.get(p, 10.0)
+                slider.setValue(int(params[p] * div))
+            else:
+                slider.setValue(0)
+            slider.blockSignals(False)
+
+                  
     def update_sandbox_intimacy(self, val):
         llm_brain.config["intimacy"] = val
         self.lbl_intimacy.setText(f"当前沙盒模拟好感度: {val} / 100")
@@ -799,27 +822,26 @@ class SystemEngineTester(QMainWindow):
         current_intimacy = llm_brain.config.get("intimacy", 0)
         target_outfit = None
 
-        if is_holiday:
-            target_outfit = "ethnic_cloak" if is_cold else "ethnic_wear"
+        if is_holiday: target_outfit = "ethnic_cloak" if is_cold else "ethnic_wear"
         elif hour >= 22 or hour <= 6:
             if outfit_manager._current_outfit not in ["sleepwear", "towel"]:
-                if current_intimacy >= 60 and random.random() < 0.5:
-                    target_outfit = "towel"
-                else:
-                    target_outfit = "sleepwear"
+                if current_intimacy >= 60 and random.random() < 0.5: target_outfit = "towel"
+                else: target_outfit = "sleepwear"
+            else: target_outfit = outfit_manager._current_outfit
+        elif hour >= 19: target_outfit = "uniform_dress"
+        else: target_outfit = "uniform_tight"
+
+        if target_outfit:
+            if target_outfit != outfit_manager._current_outfit:
+                self.current_context_html = "<span style='color:#ccc;'><i>(窸窸窣窣换衣服中...)</i></span><br>"
+                self.exec_js(f"window.showBubble(\"{self.current_context_html}\");")
+                self.log_param(f"⏳ 服装切换至 {target_outfit}, 进入 3 秒延时...")
+                QTimer.singleShot(3000, lambda: self._apply_delayed_outfit(target_outfit))
+                outfit_manager._current_outfit = target_outfit
             else:
-                target_outfit = outfit_manager._current_outfit
-        elif hour >= 19:
-            target_outfit = "uniform_dress"
-        else:
-            target_outfit = "uniform_tight"
+                self.log_param(f"⚡ 目标服装已经是 [{target_outfit}]，无需重复切换。")
 
-        if target_outfit and target_outfit != outfit_manager._current_outfit:
-            self.exec_js("window.showBubble(\"<span style='color:#ccc;'><i>(窸窸窣窣换衣服中...)</i></span><br>\");")
-            self.log_param(f"⏳ 服装切换至 {target_outfit}, 进入 3 秒延时...")
-            QTimer.singleShot(3000, lambda: self._apply_delayed_outfit(target_outfit))
-            outfit_manager._current_outfit = target_outfit
-
+                    
     def toggle_vision_tracking(self):
         is_on = not self.trackpad.is_tracking_enabled
         self.trackpad.is_tracking_enabled = is_on
@@ -836,11 +858,17 @@ class SystemEngineTester(QMainWindow):
         if self.trackpad.is_tracking_enabled: self.toggle_vision_tracking()
         idx = motion_manager.get_motion_index('wait_haji')
         self.exec_js(f"window.playRomashaMotion('BaseMotions', {idx});")
-        self.exec_js("window.showBubble(\"<span style='color:#ccc;'><i>(陷入发呆...)</i></span><br>\");")
+        self.current_context_html = "<span style='color:#ccc;'><i>(陷入发呆...)</i></span><br>"
+        self.exec_js(f"window.showBubble(\"{self.current_context_html}\");")
 
     def simulate_touch(self, tag, name_cn):
-        self.exec_js(f"window.showBubble(\"<span style='color:#fd92a1;'>*[系统测试]* {name_cn}</span><br>\");")
+                                       
+        self.current_context_html = f"<span style='color:#fd92a1;'>*[系统测试]* {name_cn}</span><br>"
+        bubble_html = self.current_context_html + "<span style='color:#888; font-size:12px;'><i>(感受中...)</i></span>"
+        safe_html = bubble_html.replace("'", "\\'")
+        self.exec_js(f"window.showBubble('{safe_html}');")
 
+                    
     def run_script(self):
         if self.is_script_running: return
         raw_lines = self.script_input.toPlainText().split('\n')
@@ -857,15 +885,13 @@ class SystemEngineTester(QMainWindow):
         delay_next = 100
 
         if cmd_line.startswith("DELAY:"):
-            try:
-                delay_next = int(cmd_line.split(":", 1)[1].strip())
-            except:
-                pass
+            try: delay_next = int(cmd_line.split(":", 1)[1].strip())
+            except: pass
         elif cmd_line.startswith("BUBBLE:"):
             text = cmd_line.split(":", 1)[1].strip()
             self.current_display_text = ""
             self.target_display_text = text
-            self.exec_js("window.showBubble(\"<span style='color:#e67e22;'>[剧本气泡]</span><br>\");")
+            self.current_context_html = "<span style='color:#e67e22;'>[剧本气泡]</span><br>"
         elif cmd_line.startswith("ACT:"):
             act = cmd_line.split(":", 1)[1].strip()
             self.tag_execution_queue.append(('act', act))
@@ -878,6 +904,7 @@ class SystemEngineTester(QMainWindow):
 
         QTimer.singleShot(delay_next, self.process_next_script_cmd)
 
+                        
     def inject_tag_to_input(self, prefix, val):
         if "---" in val: return
         tag = f"[{prefix}_{val}]"
@@ -890,8 +917,12 @@ class SystemEngineTester(QMainWindow):
 
         self.current_display_text = ""
         self.processed_tags.clear()
-        self.exec_js("window.showBubble(\"<span style='color:#48a1fa;'>[本地文本列队]</span><br>\");")
+        self.current_context_html = "<span style='color:#48a1fa;'>[本地文本列队]</span><br>"
+        bubble_html = self.current_context_html + "<span style='color:#888; font-size:12px;'><i>(思考中...)</i></span>"
+        safe_html = bubble_html.replace("'", "\\'")
+        self.exec_js(f"window.showBubble('{safe_html}');")
 
+                
         tags = re.findall(r'\[([a-zA-Z0-9_]+)\]', raw_text)
         for tag in tags:
             tag_lower = tag.lower()
@@ -909,6 +940,15 @@ class SystemEngineTester(QMainWindow):
 
         self.target_display_text = re.sub(r'\[.*?\]', '', raw_text).strip()
 
+    def resolve_static_mood_mock(self):
+                       
+        self.log_param("🧊 [沙盒机制]: 15秒定格破冰触发，提示大模型说话。")
+        self.current_context_html = "<span style='color:#ccc;'><i>(短暂的定格后，她似乎有了动作...)</i></span><br>"
+        bubble_html = self.current_context_html + "<span style='color:#888; font-size:12px;'><i>(调整状态...)</i></span>"
+        safe_html = bubble_html.replace("'", "\\'")
+        self.exec_js(f"window.showBubble('{safe_html}');")
+
+                           
     def process_next_tag(self):
         if not self.tag_execution_queue: return
 
@@ -932,20 +972,36 @@ class SystemEngineTester(QMainWindow):
                 else:
                     self.log_param(f"⏳ 瞬间动作播放中，情绪 '{val}' 已在后台就绪待命...")
 
+                                                   
+                if val in ['neutral', 'wait', 'wait_haji']:
+                    self.static_mood_timer.start(8000)
+                    self.log_param(f"⏱️ 启动 15 秒沙盒破冰定时器 (触发 {val})")
+                else:
+                    self.static_mood_timer.stop()
+
         elif tag_type == 'act':
             idx = motion_manager.get_motion_index(val)
             if idx is not None:
                 self.exec_js(f"window.playRomashaMotion('BaseMotions', {idx});")
+                                  
                 self.motion_revert_timer.start(4500)
 
+                            
     def typewriter_tick(self):
         if self.chk_network.isChecked() and random.random() < 0.25: return
+
         if self.current_display_text != self.target_display_text:
-            next_idx = len(self.current_display_text)
-            if next_idx < len(self.target_display_text):
-                self.current_display_text += self.target_display_text[next_idx]
+            if not self.target_display_text.startswith(self.current_display_text):
+                self.current_display_text = self.target_display_text
+            else:
+                next_idx = len(self.current_display_text)
+                if next_idx < len(self.target_display_text):
+                    self.current_display_text += self.target_display_text[next_idx]
+
+                                     
             safe_text = self.current_display_text.replace("\\", "\\\\").replace("\n", "<br>")
-            safe_html = f"<span style='color:#48a1fa;'>[本地流式]</span><br>{safe_text}".replace("'", "\\'")
+            final_html = self.current_context_html + safe_text
+            safe_html = final_html.replace("'", "\\'")
             self.exec_js(f"window.showBubble('{safe_html}');")
 
     def trigger_interrupt(self):
@@ -955,9 +1011,10 @@ class SystemEngineTester(QMainWindow):
         self.tag_execution_queue.clear()
         self.target_display_text = "（中止...）"
         self.current_display_text = "（中止...）"
-        idx = motion_manager.get_motion_index('neutral')
+        idx = motion_manager.get_motion_index('talk')                       
         self.exec_js(f"window.playRomashaMotion('BaseMotions', {idx});")
 
+                    
     def refresh_memory(self, mode):
         self.mem_list.clear()
         try:
@@ -974,11 +1031,9 @@ class SystemEngineTester(QMainWindow):
                     ids = res.get('ids', [])
                     results = "\n---\n".join([f"[ID: {ids[i]}] {docs[i]}" for i in range(len(docs))])
 
-            if not results:
-                self.mem_list.addItem(f"[{mode.upper()}] 无匹配记录。")
+            if not results: self.mem_list.addItem(f"[{mode.upper()}] 无匹配记录。")
             else:
-                for mem in results.split("\n---\n"):
-                    self.mem_list.addItem(mem)
+                for mem in results.split("\n---\n"): self.mem_list.addItem(mem)
         except Exception as e:
             self.mem_list.addItem(f"数据库错: {e}")
 
@@ -1009,12 +1064,9 @@ class SystemEngineTester(QMainWindow):
             if real_col.count() == 0:
                 self.log_param("⚠️ 真实记忆库为空，无数据可拷贝。")
                 return
-
             real_data = real_col.get()
-
             sandbox_collection.add(
-                documents=real_data['documents'],
-                metadatas=real_data['metadatas'],
+                documents=real_data['documents'], metadatas=real_data['metadatas'],
                 ids=[f"sandbox_copied_{uid}" for uid in real_data['ids']]
             )
             self.log_param(f"📥 成功拷贝 {len(real_data['documents'])} 条记忆至沙盒！")
@@ -1022,25 +1074,39 @@ class SystemEngineTester(QMainWindow):
         except Exception as e:
             self.log_param(f"❌ 拷贝失败: {e}")
 
+                                                    
     def _build_prompts(self):
         user_text = self.api_input.toPlainText().strip()
-        if not user_text:
-            user_text = "（测试空输入）"
+        if not user_text: user_text = "（测试空输入）"
 
         if hasattr(self, 'chk_raw_text_only') and self.chk_raw_text_only.isChecked():
             return "", user_text
 
         motions_list_str = "".join([f"- [act_{k}]: {v['desc']}\n" for k, v in motion_manager.MOTIONS.items()])
+
+                                 
         moods_list_str = (
-            "- [mood_talk]: 正常交流的动态常态\n"
+            "- [mood_talk]: 正常交流的动态常态 (有呼吸感和轻微摇摆)\n"
             "- [mood_talk_alc]: 脸红娇羞、不知所措的动态常态\n"
             "- [mood_talk_ero]: 极度委屈、含泪或深情的动态常态\n"
-            "- [mood_neutral]: 强制收回动作变成呆立静止\n"
-            "- [mood_wait]: 保持你前一秒的动作直接定格\n"
-            "- [mood_wait_haji]: 保持定格，但嘴巴微动\n"
+            "- [mood_neutral]: 【特定姿势定格】强制收回动作，变成最基础的呆立静止姿势 (可在玩“一二三木头人”、被罚站、或彻底放空归零等时使用)\n"
+            "- [mood_wait]: 【当前姿势冻结】保持你前一秒的动作直接定格，完全屏息不动 (适合被吓到愣住、或者屏住呼吸等僵住的情境)\n"
+            "- [mood_wait_haji]: 【当前姿势冻结+碎碎念】保持你前一秒的动作定格，但嘴巴微动 (适合在任何姿势下突然陷入纠结、小声嘀咕、赌气等)\n"
         )
-        outfits_list_str = "、".join([f"[{k}]" for k in outfit_manager.OUTFITS.keys()])
-        hairs_list_str = "、".join([f"[{k}]" for k in outfit_manager.HAIRSTYLES.keys()])
+        outfits_list_str = (
+            "- [wear_uniform_tight]: 紧身制服 (日常居家/白天)\n"
+            "- [wear_uniform_dress]: 连衣裙制服 (更文雅的日常)\n"
+            "- [wear_sleepwear]: 睡衣 (夜晚睡觉时穿)\n"
+            "- [wear_swimsuit]: 泳装 (去海边或游泳池时穿)\n"
+            "- [wear_ethnic_wear]: 民族风服饰 (较为暴露，可以当做特殊节日的服装)\n"
+            "- [wear_ethnic_cloak]: 民族风斗篷 (防风防寒，里面穿着民族风服饰，或为了遮挡身体感到害羞时穿)\n"
+            "- [wear_towel]: 裹浴巾 (刚洗完澡时穿)\n"
+            "- [wear_bunny]: 兔女郎装 (情趣/被特殊要求时)\n"
+        )
+        hairs_list_str = (
+            "- [hair_loose]: 散开头发\n"
+            "- [hair_bun]: 把头发盘起来 (丸子头/马尾)\n"
+        )
 
         current_time_str = datetime.datetime.now().strftime("%Y年%m月%d日 %H:%M")
         current_outfit = outfit_manager._current_outfit if outfit_manager._current_outfit else "未知"
@@ -1050,22 +1116,31 @@ class SystemEngineTester(QMainWindow):
         try:
             res = sandbox_collection.query(query_texts=[user_text], n_results=3)
             docs = res.get('documents', [[]])[0]
-            if docs:
-                memories = "\n---\n".join(docs)
-        except:
-            pass
+            if docs: memories = "\n---\n".join(docs)
+        except: pass
 
         system_prompt = f"{llm_brain.persona.ROMASHA_PROMPT}\n\n"
         system_prompt += f"【世界与背景档案】\n{world_info.get_full_lore()}\n\n"
         system_prompt += f"【来自海马体的过往记忆 (读取沙盒)】\n{memories if memories else '（当前没有唤醒特定的过往回忆）'}\n\n"
-        system_prompt += f"【你的当前物理状态】\n- 现实时间：{current_time_str}\n- 你当前正穿着：{current_outfit}\n- 你当前对我的【亲密度】：{current_intimacy} / 100 \n\n"
-        system_prompt += f"【你的物理引擎边界】\n可用服装库：{outfits_list_str}\n可用发型库：{hairs_list_str}\n常驻情绪库：\n{moods_list_str}\n瞬间动作库：\n{motions_list_str}\n"
+        system_prompt += f"【你的当前物理状态】\n"
+        system_prompt += f"- 现实时间：{current_time_str}\n"
+        system_prompt += f"- 你当前正穿着：{current_outfit}\n"
+                          
+        system_prompt += f"- 你当前对我的【亲密度】：{current_intimacy} / 100 \n"
+        system_prompt += f"  (说明：负数代表厌恶/恐惧，0-30是陌生/戒备，30-60是朋友/信任，60-80是暧昧，80-100是极度依赖/深爱)\n"
+        system_prompt += f"⚠️ 换装与发型规则：你可以根据聊天情境（例如我要你换衣服、你要去洗澡、睡觉或庆祝特殊节日）自主输出 [wear_xxx] 或 [hair_xxx] 标签换衣服或发型。如果没有换装或换发型的行为，【绝对禁止】输出这两个标签！保持现状即可。\n\n"
+
+        system_prompt += f"【⚠️ 你的物理引擎边界（极其重要） ⚠️】\n"
+        system_prompt += f"可用服装库：\n{outfits_list_str}\n"
+        system_prompt += f"可用发型库：\n{hairs_list_str}\n"
+        system_prompt += f"常驻情绪库（决定互动后的余温）：\n{moods_list_str}\n"
+        system_prompt += f"瞬间动作库（决定第一反应）：\n{motions_list_str}\n"
+        system_prompt += f"再次警告：绝不能创造上面三个列表以外的任何标签！"
 
         return system_prompt, user_text
 
     def generate_full_prompt(self):
         system_prompt, user_text = self._build_prompts()
-
         total_chars = len(system_prompt) + len(user_text)
         est_tokens = int(total_chars * 1.2)
 
@@ -1097,7 +1172,6 @@ class SystemEngineTester(QMainWindow):
             btn_sender.setText("⏳ 请求中...")
 
         system_prompt, user_text = self._build_prompts()
-
         self.generate_full_prompt()
         self.api_output.append("\n\n=============== [ 🚀 正在请求 API，请稍候... ] ===============\n")
         self.log_param("📡 开始向填写的 API 接口发送实机测试请求...")
@@ -1106,7 +1180,6 @@ class SystemEngineTester(QMainWindow):
         self.api_worker.chunk_received.connect(self.on_api_chunk)
         self.api_worker.error.connect(self.on_api_error)
         self.api_worker.finished.connect(self.on_api_finished)
-
         self.api_worker.btn_sender = btn_sender
         self.api_worker.start()
 
@@ -1138,7 +1211,6 @@ class SystemEngineTester(QMainWindow):
 
     def closeEvent(self, event):
         self.log_param("🛑 正在停止系统并尝试销毁沙盒...")
-
         self.tag_timer.stop()
         self.typewriter_timer.stop()
 
@@ -1153,7 +1225,6 @@ class SystemEngineTester(QMainWindow):
         except Exception as e:
             print(f"⚠️ 退出时删除沙盒受阻 (Windows文件锁未释放): {e}")
             print("💡 别担心，下次启动程序时会自动执行强力清扫。")
-
         event.accept()
 
     def show_lore_window(self):
@@ -1178,7 +1249,7 @@ class SystemEngineTester(QMainWindow):
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
-    outfit_manager._current_outfit = "uniform_tight"
+    outfit_manager._current_outfit = None
     tester = SystemEngineTester()
     tester.show()
     sys.exit(app.exec_())
