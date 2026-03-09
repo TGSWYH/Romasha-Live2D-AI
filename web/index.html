@@ -281,7 +281,7 @@
                 if(bubbleTimeout) clearTimeout(bubbleTimeout);
 
                 if (!keepAlive) {
-                    let displayTime = Math.max(5000, htmlText.replace(/<[^>]+>/g, '').length * 80);
+                    let displayTime = Math.max(5000, text.replace(/<[^>]+>/g, '').length * 80);
                     bubbleTimeout = setTimeout(() => {
                         chatBubble.style.opacity = 0;
                     }, displayTime);
@@ -436,4 +436,5 @@
         });
     </script>
 </body>
+
 </html>
