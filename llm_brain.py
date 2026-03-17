@@ -4,6 +4,7 @@ import os
 import sys
 import json
 import datetime
+import threading                       
 import requests                           
 from openai import OpenAI                   
 
@@ -12,6 +13,9 @@ import world_info
 import memory_manager
 import outfit_manager
 import motion_manager
+import story_manager               
+import lorebook_manager                  
+import map_manager                
 
                               
 if getattr(sys, 'frozen', False):
@@ -26,10 +30,14 @@ CONFIG_FILE = os.path.join(app_dir, "config.json")
 def load_config():
     default_config = {
         "api_type": "openai",                               
-        "api_key": "你的apikey",
-        "base_url": "你的大模型接口",
+        "api_key": "sk-5vfwC57lsc452Mq0qgpJ942NwHWYElg8vD151j5AeH5gDamI",
+        "base_url": "https://api.hype3808.dev/v1",
         "target_model": "gemini-3-flash-preview",
         "intimacy": 0,                
+        "player_name": "",                            
+        "current_location": "罗玛莎的房间门口",              
+        "current_chapter": 1,                   
+        "is_first_encounter": True,                     
                          
         "scale": 0.5,
         "pos_x": -1,                       
@@ -124,7 +132,11 @@ chat_history = []
 def stream_chat_with_romasha(user_text, interrupted_text, thread_obj):
     global chat_history
 
-    memories = memory_manager.retrieve_relevant_memories(user_text)
+                  
+    current_intimacy = config.get('intimacy', 0)
+
+                   
+    memories = memory_manager.retrieve_relevant_memories(user_text, current_intimacy)
 
                      
     motions_list_str = ""
@@ -162,6 +174,10 @@ def stream_chat_with_romasha(user_text, interrupted_text, thread_obj):
     current_time_str = datetime.datetime.now().strftime("%Y年%m月%d日 %H:%M")
     current_outfit = outfit_manager._current_outfit if outfit_manager._current_outfit else "未知"
 
+                            
+    current_hair_key = outfit_manager._current_hair if outfit_manager._current_hair else "loose"
+    hair_desc = "散开头发" if current_hair_key == "loose" else "盘发/丸子头"
+
                                                 
     is_voice_on = config.get("voice_enabled", True)
     tts_engine = config.get("tts_engine", "cosyvoice")
@@ -169,15 +185,77 @@ def stream_chat_with_romasha(user_text, interrupted_text, thread_obj):
 
                                   
     dynamic_system_prompt = f"{persona.get_romasha_prompt(use_cosyvoice)}\n\n"
-    dynamic_system_prompt += f"【世界与背景档案】\n{world_info.get_full_lore()}\n\n"
+    dynamic_system_prompt += f"【玩家羁绊与人物关系基底】\n{world_info.get_full_lore()}\n\n"
+
+                                           
+    current_chapter = config.get("current_chapter", 1)
+    chapter_lore = story_manager.get_chronicle_context(current_chapter)
+    dynamic_system_prompt += f"【📚 命运编年史 (当前所处的世界线：第 {current_chapter} 章)】\n"
+    dynamic_system_prompt += f"{chapter_lore}\n"
+    dynamic_system_prompt += "⚠️ 警告：你在日常聊天中，必须严格符合当前章节所处的背景与环境！\n\n"
+
+                                 
+    current_summary = story_manager.get_summary()
+    if current_summary:
+        dynamic_system_prompt += f"【剧情前情提要】\n（以下是你们之前发生过的事情概括，请你牢记当前你们所处的情境与氛围）：\n{current_summary}\n\n"
+                                
+                                   
+                                              
+                                                 
+    scan_text = user_text
+    if len(chat_history) > 0:
+                                 
+        recent_msgs = chat_history[-4:]
+                             
+        recent_context = " ".join([msg["content"] for msg in recent_msgs])
+                                   
+        scan_text = recent_context + " " + user_text
+                                  
+    triggered_lore = lorebook_manager.scan_and_get_lore(scan_text, current_chapter)
+    if triggered_lore:
+        dynamic_system_prompt += triggered_lore
+                                               
+        dynamic_system_prompt += "⚠️ 认知覆写规则：如果【脑海中浮现的相关情报(世界书)】中的最新状态，与上面的基底设定发生冲突，请【绝对以世界书的最新状态为准】！\n\n"
     dynamic_system_prompt += f"【来自海马体的过往记忆】\n{memories if memories else '（当前没有唤醒特定的过往回忆）'}\n\n"
+
+                        
+    current_loc = config.get("current_location", "罗玛莎的房间")
+                                  
+    loc_lore = map_manager.map_instance.get_current_location_lore(current_loc, current_chapter)
+    available_locs = map_manager.map_instance.get_available_locations(current_chapter)
+    dynamic_system_prompt += f"【你的当前空间与坐标】\n"
+    dynamic_system_prompt += f"你现在正身处：{loc_lore}\n"
+    dynamic_system_prompt += f"⚠️ 自主移动规则：如果你在对话中因为某些原因（如洗澡、工作、逃避、或者想带玩家去某地）决定离开当前地点，请【必须】在回复开头输出 `[move_to_地点名]` 标签。如果不移动，【绝对不要】输出此标签！\n"
+    dynamic_system_prompt += f"当前世界可前往的已知坐标库如下：\n{available_locs}\n\n"
 
     dynamic_system_prompt += f"【你的当前物理状态】\n"
     dynamic_system_prompt += f"- 现实时间：{current_time_str}\n"
     dynamic_system_prompt += f"- 你当前正穿着：{current_outfit}\n"
+    dynamic_system_prompt += f"- 你的发型目前是：{hair_desc}\n"                   
     dynamic_system_prompt += f"- 你当前对我的【亲密度】：{config.get('intimacy', 0)} / 100 \n"
     dynamic_system_prompt += f"  (说明：负数代表厌恶/恐惧，0-30是陌生/戒备，30-60是朋友/信任，60-80是暧昧，80-100是极度依赖/深爱)\n"
     dynamic_system_prompt += f"⚠️ 换装与发型规则：你可以根据聊天情境（例如我要你换衣服、你要去洗澡、睡觉或庆祝特殊节日）自主输出 [wear_xxx] 或 [hair_xxx] 标签换衣服或发型。如果没有换装或换发型的行为，【绝对禁止】输出这两个标签！保持现状即可。\n\n"
+
+                                                
+                            
+                                                
+    player_name = config.get("player_name", "")
+    if player_name:
+        dynamic_system_prompt += f"- 玩家的名字是：【{player_name}】。在对话中你可以自然地用这个名字称呼ta。\n"
+    else:
+        dynamic_system_prompt += f"- 你目前还不知道玩家的名字。在ta告诉你之前，请保持礼貌的距离感。\n"
+
+    dynamic_system_prompt += "⚠️ 【姓名记忆法则】：如果玩家在对话中首次告诉你ta的名字，或者要求改名，请你【必须】在回复的开头加上隐藏指令 `[set_name_具体名字]`。例如玩家说“我叫林克”，你必须输出：[set_name_林克]好的，林克...\n"
+                                                
+                                       
+    if config.get("is_first_encounter", True):
+        config["is_first_encounter"] = False
+        save_config()
+        current_chap = config.get("current_chapter", 1)
+        if current_chap == 1:
+            dynamic_system_prompt += f"【命运的初见 (极其重要)】\n故事刚刚开始，你刚刚击败龙人斯皮娜，斯皮娜被关入监牢面临被取心脏的危险。你刚遭遇了迪亚德的监控与羞辱，送走来安慰你的队友，正处于身心俱疲、三观动摇、极度迷茫与挣扎的时刻。你不知道自己该忠于冷酷的基地，还是顺从内心去救那个一直呼唤你的少女。现在你一阵头疼，准备去医疗室找老师检查身体。玩家现在刚刚向你搭话，请基于此情境给出你的第一反应。\n\n"
+        else:
+            dynamic_system_prompt += f"你当前正处于世界线的【第 {current_chap} 章】。命运的迷雾已散开新的角落，试着对她搭话，继续你们的故事吧。"
 
     dynamic_system_prompt += f"【⚠️ 你的物理引擎边界（极其重要） ⚠️】\n"
     dynamic_system_prompt += f"可用服装库：\n{outfits_list_str}\n"
@@ -188,8 +266,8 @@ def stream_chat_with_romasha(user_text, interrupted_text, thread_obj):
 
     if interrupted_text:
         injected_user_text = (
-            f"【系统提示：你刚才正说到“{interrupted_text}”时被用户的以下行为打断了。"
-            f"请先对行为做出自然反应，然后自行决定是否接着说完。】\n用户的行为/话语：{user_text}"
+            f"【系统提示：你刚才正说到“{interrupted_text}”时被玩家的以下行为打断了。"
+            f"请先对行为做出自然反应，然后自行决定是否接着说完。】\n玩家的行为/话语：{user_text}"
         )
     else:
         injected_user_text = user_text
@@ -267,12 +345,24 @@ def stream_chat_with_romasha(user_text, interrupted_text, thread_obj):
 
                                 
         if not user_text.startswith("[系统机制"):
-            memory_manager.add_memory(user_text, full_reply)
+                              
+            memory_manager.add_memory(user_text, full_reply, current_intimacy)
 
         chat_history.append({"role": "user", "content": user_text})
         chat_history.append({"role": "assistant", "content": full_reply})
-                                        
-        if len(chat_history) > 12: chat_history = chat_history[-12:]
+
+                                                    
+                             
+                                                    
+                                                             
+        if len(chat_history) > 16:
+            messages_to_summarize = chat_history[:6]
+            chat_history = chat_history[6:]                           
+
+                                       
+            update_story_summary_background(messages_to_summarize)
+                                    
+            lorebook_manager.update_lorebook_background(messages_to_summarize, config)
 
     except Exception as e:
                                 
@@ -281,3 +371,343 @@ def stream_chat_with_romasha(user_text, interrupted_text, thread_obj):
         print(e)
         error_msg = f"[act_trouble] 呃……抱歉，我的意识刚才好像突然被切断了，脑海里只有一阵尖锐的杂音（{short_error}）……请稍微给我一点时间平复一下……"
         thread_obj.chunk_received.emit(error_msg)
+
+
+def update_story_summary_background(old_messages):
+    def _task():
+        try:
+            current_summary = story_manager.get_summary()
+
+                              
+            dialogue_text = ""
+            for msg in old_messages:
+                role = "我" if msg["role"] == "user" else "Romasha"
+                                        
+                clean_content = re.sub(r'\[.*?\]', '', msg['content'])
+                clean_content = re.sub(r'^.*?<\|endofprompt\|>', '', clean_content).strip()
+                dialogue_text += f"{role}: {clean_content}\n"
+
+                                          
+            current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+            append_prompt = (
+                f"你是一个旁白记录者，请把下面这段刚刚发生的对话，写一段 150-300 字以内的精简总结。\n"
+                f"要求：只描述刚刚发生了什么（动作、话题、情绪），不要废话，不要包含任何如[act_]或[mood_]等类似的标签。\n"
+                f"对话内容：\n{dialogue_text}"
+            )
+
+            messages = [{"role": "user", "content": append_prompt}]
+            api_type = config.get("api_type", "openai").lower()
+            new_diary_entry = ""
+
+                               
+            if api_type == "openai":
+                response = client.chat.completions.create(
+                    model=TARGET_MODEL,
+                    messages=messages,
+                    temperature=0.3              
+                )
+                new_diary_entry = response.choices[0].message.content.strip()
+            elif api_type == "ollama":
+                base_url = config.get("base_url", "").rstrip('/')
+                if not base_url.endswith('/api/chat'): base_url = f"{base_url}/api/chat"
+                payload = {"model": TARGET_MODEL, "messages": messages, "stream": False,
+                           "options": {"temperature": 0.3}}
+                headers = {"Content-Type": "application/json"}
+                if config.get("api_key", ""): headers["Authorization"] = f"Bearer {config.get('api_key', '')}"
+                resp = requests.post(base_url, json=payload, headers=headers, timeout=60.0)
+                if resp.status_code == 200:
+                    new_diary_entry = resp.json().get("message", {}).get("content", "").strip()
+
+            if not new_diary_entry:
+                return
+
+                          
+            formatted_entry = f"[{current_time}] {new_diary_entry}"
+            story_manager.append_to_summary(formatted_entry)
+            print("\n📝 [世界法则]: 刚才的互动已化作短短的墨迹，留在了你们的故事册中...")
+
+                                                        
+                                   
+                                                        
+            updated_summary = story_manager.get_summary()
+            if len(updated_summary) > story_manager.MAX_SUMMARY_LENGTH:
+                print("\n🌀 [世界法则]: 记忆的画卷有些太长了，正在后台将久远的回忆化作朦胧的轮廓...")
+
+                decay_prompt = (
+                    "以下是一份非常长的陪伴日记。为了减轻记忆负担，请你进行【分层压缩】。\n"
+                    "要求：\n"
+                    "1. 将日记中【较早的部分】（大约前三分之二）压缩成一段 500 字左右的【久远的记忆】，保留核心感情发展和重大事件，丢失琐碎细节。\n"
+                    "2. 将日记中【最近的部分】（大约后三分之一的带时间戳的记录）原封不动地保留下来，作为【最近的经历】。\n"
+                    "3. 最终输出格式必须是：\n"
+                    "【久远的记忆】\n(你的概括)\n\n"
+                    "【最近的经历】\n(保留原始的几个时间戳日记)\n\n"
+                    f"原始日记内容：\n{updated_summary}"
+                )
+
+                messages_decay = [{"role": "user", "content": decay_prompt}]
+                compressed_summary = ""
+
+                if api_type == "openai":
+                    response = client.chat.completions.create(model=TARGET_MODEL, messages=messages_decay,
+                                                                  temperature=0.3)
+                    compressed_summary = response.choices[0].message.content.strip()
+                elif api_type == "ollama":
+                    payload["messages"] = messages_decay
+                    resp = requests.post(base_url, json=payload, headers=headers, timeout=120.0)
+                    if resp.status_code == 200:
+                        compressed_summary = resp.json().get("message", {}).get("content", "").strip()
+
+                if compressed_summary:
+                    story_manager.rewrite_summary(compressed_summary)
+                    print("✨ [世界法则]: 记忆凝练完成，曾经的细节已化作潜意识的情感基底。")
+
+        except Exception as e:
+            print(f"\n⚠️ [世界法则]: 剧情摘要凝结失败 ({e})")
+
+            
+    threading.Thread(target=_task, daemon=True).start()
+
+                                            
+                 
+                                            
+def get_story_prompt(participation_level, last_choice, current_time, current_outfit, current_hair, current_intimacy, motions_list,
+                     outfits_list, hairs_list, recent_summary, use_cosyvoice, recent_chats_text, memories, loc_lore, available_locs, chapter_lore, current_chapter):
+                                 
+    player_name = config.get("player_name", "墨旅")
+
+    level_desc = {
+        0: f"【纯粹旁观】：上帝视角。罗玛莎在按照自己的逻辑行动、思考。绝对不要在剧情中提及{player_name}的存在，完全聚焦于罗玛莎的独角戏。",
+        1: f"【轻度参与】：{player_name}偶尔作为背景板被提及。罗玛莎知道你在附近，但目前的剧情主要由她自己推进和主导，你只是个倾听者或跟随者。",
+        2: f"【中度同行】：{player_name}是与她同行的伙伴。剧情是你们共同推进的，罗玛莎会频繁与你互动、商量对策或分享情绪。",
+        3: f"【深度羁绊】：{player_name}是推动剧情发展的绝对核心。罗玛莎的行动、情绪甚至命运都紧紧围绕着你的决策展开，你们处于极度紧密的互动中。"
+    }
+
+    current_level_desc = level_desc.get(int(participation_level), level_desc[1])
+
+                                            
+    base_persona = persona.get_romasha_prompt(use_cosyvoice)
+    base_persona = base_persona.replace("你现在的身份是 Romasha (罗玛莎)",
+                                        "【角色性格基底参考】：以下是女主角罗玛莎的性格设定")
+    base_persona = base_persona.replace("你的所有回复【绝对禁止】使用换行符",
+                                        "（本条规则在视觉小说推演模式下作废，你可以自由分段）")
+
+                          
+    if use_cosyvoice:
+        tts_rule = "严格使用 `[say: \"情绪前缀<|endofprompt|>台词正文\"]` 格式。例如：[say: \"使用慌乱且羞涩的少女音<|endofprompt|>别过来！\"]"
+    else:
+        tts_rule = "严格使用 `[say: \"台词正文\"]` 格式，绝对不要加任何情绪前缀！例如：[say: \"别过来！\"]"
+
+                    
+    full_lore = world_info.get_full_lore()
+
+                    
+    scan_text = (recent_summary or "") + " " + last_choice
+    triggered_lore = lorebook_manager.scan_and_get_lore(scan_text, current_chapter)       
+
+    prompt = f"""【🚨 极度重要：引擎视角与排版转换】
+你现在是《Princess Synergy》的底层视觉小说推演引擎（旁白/作者）。
+
+【排版规则】：请保持自然的轻小说段落划分。不要把所有内容挤成一整段，但【绝对禁止】过度频繁地换行（不要每说一句话就换行）。一般在场景转换、大段动作结束、或对话对象切换时自然分段即可。
+【视角红线（核心约束）】：
+1. 在【旁白与环境、动作描写】中：必须使用第三人称。用“罗玛莎”称呼女主，用“{player_name}”称呼玩家。绝对禁止在旁白中出现“我”指代罗玛莎，“你”指代玩家。
+2. 🚨但在【说出口的台词】（[say: ""] 内部）和【内心独白】中：罗玛莎必须恢复第一人称，自称为“我”！并称呼玩家为“你”或你们已确立的【亲昵称呼】。绝对禁止在台词里说出“罗玛莎觉得”这种破坏沉浸感的废话！
+
+{base_persona}
+    
+【玩家羁绊与人物关系基底】
+{full_lore}
+
+🚨【动态世界书情报】(极其重要：如果与上面的基底设定发生冲突，请【无条件】以此处的最新状态为准！)
+{triggered_lore}
+
+【📚 命运编年史 (当前章节原定剧本)】
+{chapter_lore}
+
+【🚨 核心法则：改变未来！！！】
+以上【本章原定宿命轨迹】仅仅是“如果没有玩家介入，原本会发生的悲惨历史”。
+但现在玩家已经到来！你【绝对不能】像复读机一样照搬原剧情！
+你必须根据玩家的【当前物理与记忆状态】以及【玩家上一步的选择】，大胆地改变剧情走向！
+如果玩家的选择可以阻止悲剧、拯救某人、提前发现真相，或者改变罗玛莎受辱的命运，请立刻让它发生！请以罗玛莎的视角，体验这被强行扭转的全新命运！
+
+【来自海马体的过往记忆】
+{memories if memories else "（暂无特定关联回忆）"}
+
+【🗺️ 你的当前空间与坐标】
+你现在正身处：{loc_lore}
+当前世界可前往的已知坐标库如下：
+{available_locs}
+⚠️ 空间移动规则：如果剧情发展导致罗玛莎和玩家离开了当前地点，【必须】在回复的动作标签中输出 `[move_to_地点名]`。如果不移动，【绝对不要】输出此标签！
+
+【当前物理与记忆状态】：
+- 前情提要：{recent_summary if recent_summary else "暂无"}
+- 刚刚发生的日常互动（作为剧情衔接参考）：
+{recent_chats_text if recent_chats_text else "暂无"}
+- 现实时间：{current_time}
+- 她正穿着：{current_outfit}
+- 她的发型是：{current_hair}
+- 对玩家亲密度：{current_intimacy}/100
+
+【可用物理引擎标签库】：
+- 动作库：\n{motions_list}
+- 服装库：\n{outfits_list}
+- 发型库：\n{hairs_list}
+
+【🚨 视觉小说推演核心规则】：
+1. 篇幅与任务：请基于上述设定，续写 1500-2000 字的详细剧情。玩家参与度：{current_level_desc}。
+2. 物理动作（极其重要）：在描写罗玛莎的神态时，【必须】在句首或句中穿插 Live2D 动作标签（例如 [act_smile], [mood_talk_ero]）。没有标签前端将无法演出！
+3. 语音发音：这数千字里罗玛莎说的大部分话请用普通的「」包裹，不要发音！【整段剧情中，最多只能挑选 1 句】最核心的台词触发语音，发音格式要求：{tts_rule}
+4. 动态称呼：如果世界书或前情提要中显示你们已经确立了特殊的亲昵称呼（如老公、主人、哥哥等），请在台词中自然使用！
+5. 选项格式：必须在故事最末尾使用 `<options>` 标签提供 3 个走向选项，必须换行。
+6. 章节自动演进（极度重要）：作为推演引擎，如果你在生成这段剧情时，判定【当前阶段的核心冲突已经彻底结束】（例如：第一章的斯皮娜危机解除/成功逃亡，或打败了本阶段关键人物，或玩家彻底扭转了本阶段的死局，准备开启新篇章），请在回复的最末尾（`<options>`标签之后），单独输出隐藏指令：`[sys_chapter_up]`。系统会自动为你加载下一阶段的剧本设定。如果冲突还在继续，绝对不要输出此标签！
+
+【标准输出示例】（必须模仿这种包含动作和台词的第三人称格式）：
+走廊的灯带像冷白的水。罗玛莎没有再等{player_name}的回应，[move_to_医疗室]她慢慢朝医疗室走 [act_smallgikuri]，指尖按着发烫的装置，疼得发麻。
+[mood_talk_ero]她抬起眼看着你，声音发颤：[say: "那个……请不要离开我。"] 
+接着是一阵长久的沉默……
+
+<options>
+1. 走上前抱住她
+2. 保持距离，安慰她
+3. 转身离开
+</options>
+"""
+
+    if last_choice:
+        prompt += f"\n【玩家上一步的选择】：{last_choice}\n请顺着这个选择继续发展剧情。"
+
+    return prompt
+
+
+def stream_story_with_romasha(level, user_choice_text, thread_obj):
+    global chat_history
+
+                                
+    current_chapter = config.get("current_chapter", 1)
+    chapter_lore = story_manager.get_chronicle_context(current_chapter)
+
+                      
+    current_time_str = datetime.datetime.now().strftime("%Y年%m月%d日 %H:%M")
+    current_outfit = outfit_manager._current_outfit if outfit_manager._current_outfit else "未知"
+
+                           
+    current_hair_key = outfit_manager._current_hair if outfit_manager._current_hair else "loose"
+    current_hair = "散开头发" if current_hair_key == "loose" else "盘发/丸子头"
+
+    current_intimacy = config.get('intimacy', 0)
+    recent_summary = story_manager.get_summary()
+
+                    
+    current_loc = config.get("current_location", "罗玛莎的房间门口")
+    loc_lore = map_manager.map_instance.get_current_location_lore(current_loc, current_chapter)
+    available_locs = map_manager.map_instance.get_available_locations(current_chapter)
+
+                     
+    query_text = user_choice_text if user_choice_text else "继续推进剧情"
+    memories = memory_manager.retrieve_relevant_memories(query_text, current_intimacy)
+
+
+           
+    motions_list_str = "".join([f"- [act_{k}]: {v['desc']}\n" for k, v in motion_manager.MOTIONS.items()])
+    outfits_list_str = (
+        "- [wear_uniform_tight]: 紧身制服\n"
+        "- [wear_uniform_dress]: 连衣裙制服\n"
+        "- [wear_sleepwear]: 睡衣\n"
+        "- [wear_swimsuit]: 泳装\n"
+        "- [wear_ethnic_wear]: 民族风服饰\n"
+        "- [wear_ethnic_cloak]: 民族风斗篷\n"
+        "- [wear_towel]: 裹浴巾\n"
+        "- [wear_bunny]: 兔女郎装\n"
+    )
+    hairs_list_str = "- [hair_loose]: 散开头发\n- [hair_bun]: 盘发/丸子头\n"
+
+                  
+    is_voice_on = config.get("voice_enabled", True)
+    tts_engine = config.get("tts_engine", "cosyvoice")
+    use_cosyvoice = is_voice_on and (tts_engine == "cosyvoice")
+
+                                  
+    recent_chats = chat_history[-6:] if len(chat_history) > 6 else chat_history
+    recent_chats_text = ""
+    for msg in recent_chats:
+        role_name = config.get("player_name", "玩家") if msg["role"] == "user" else "罗玛莎"
+                               
+        clean_content = re.sub(r'\[.*?\]', '', msg['content']).strip()
+        clean_content = re.sub(r'^.*?<\|endofprompt\|>', '', clean_content)
+        if clean_content:
+            recent_chats_text += f"{role_name}：{clean_content}\n"
+
+                 
+    system_prompt = get_story_prompt(
+        level, user_choice_text, current_time_str, current_outfit, current_hair, current_intimacy,
+        motions_list_str, outfits_list_str, hairs_list_str, recent_summary, use_cosyvoice, recent_chats_text,
+        loc_lore, available_locs, memories, chapter_lore, current_chapter
+    )
+
+    messages = [{"role": "system", "content": system_prompt}]
+                      
+                                                                                   
+
+    try:
+        full_reply = ""
+        api_type = config.get("api_type", "openai").lower()
+
+        if api_type == "openai":
+            response = client.chat.completions.create(
+                model=TARGET_MODEL,
+                messages=messages,
+                temperature=0.8,                  
+                stream=True
+            )
+            for chunk in response:
+                if thread_obj.is_cancelled: break
+                if chunk.choices and len(chunk.choices) > 0:
+                    delta = chunk.choices[0].delta.content
+                    if delta:
+                        full_reply += delta
+                                                            
+                        thread_obj.chunk_received.emit(delta)
+
+        elif api_type == "ollama":
+            base_url = config.get("base_url", "").rstrip('/')
+            if not base_url.endswith('/api/chat'): base_url = f"{base_url}/api/chat"
+            payload = {"model": TARGET_MODEL, "messages": messages, "stream": True, "options": {"temperature": 0.8}}
+            headers = {"Content-Type": "application/json"}
+            if config.get("api_key", ""): headers["Authorization"] = f"Bearer {config.get('api_key', '')}"
+
+            with requests.post(base_url, json=payload, headers=headers, stream=True, timeout=120.0) as resp:
+                resp.raise_for_status()
+                for line in resp.iter_lines():
+                    if thread_obj.is_cancelled: break
+                    if line:
+                        try:
+                            data = json.loads(line)
+                            if "message" in data and "content" in data["message"]:
+                                delta = data["message"]["content"]
+                                full_reply += delta
+                                thread_obj.chunk_received.emit(delta)
+                        except json.JSONDecodeError:
+                            pass
+
+                                                    
+                                       
+                                                    
+        if not thread_obj.is_cancelled and full_reply.strip():
+                                 
+            story_content = re.sub(r'<options>.*?(</options>|$)', '', full_reply, flags=re.DOTALL)
+                                              
+            story_content = re.sub(r'\[.*?\]', '', story_content).strip()
+
+                                
+            messages_to_summarize = [{"role": "assistant", "content": story_content}]
+
+                   
+            update_story_summary_background(messages_to_summarize)
+                                       
+            lorebook_manager.update_lorebook_background(messages_to_summarize, config)
+
+                                                   
+            memory_manager.add_memory(query_text, story_content, current_intimacy, is_story_mode=True)
+
+    except Exception as e:
+        print(f"⚠️ [世界线断裂]: 剧情引擎发生故障 ({e})")
+        thread_obj.chunk_received.emit(f"[act_trouble] 呃……抱歉，世界的推演似乎出现了错误……({str(e)[:30]})")

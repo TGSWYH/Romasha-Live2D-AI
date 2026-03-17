@@ -8,7 +8,7 @@
     <script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display/dist/cubism4.min.js"></script>
     <style>
         :root {
-            --main-font-size: 16px;
+            --main-font-size: 16px; /* 默认 size 1 */
             --sub-font-size: 14px;
         }
 
@@ -18,20 +18,10 @@
         #chat-bubble {
             position: absolute;
             background: rgba(255, 255, 255, 0.95);
-            border: 2px solid #ffb6c1;
+            border: 3px solid #ffb6c1;
             border-radius: 15px;
-            padding: 12px 18px;
+            padding: 0;
             box-sizing: border-box;
-            max-width: 350px;
-            width: max-content;
-            max-height: 150px;
-            overflow-y: auto;
-            pointer-events: auto;
-            word-wrap: break-word;
-            line-height: 1.5;
-            font-family: 'Microsoft YaHei', sans-serif;
-            font-size: var(--main-font-size);
-            color: #333;
             box-shadow: 0px 4px 15px rgba(0,0,0,0.15);
             transition: opacity 0.3s;
             opacity: 0;
@@ -39,9 +29,22 @@
             transform: translate(-50%, -100%);
         }
 
-        #chat-bubble::-webkit-scrollbar { width: 6px; }
-        #chat-bubble::-webkit-scrollbar-track { background: transparent; }
-        #chat-bubble::-webkit-scrollbar-thumb { background: #ffb6c1; border-radius: 3px; }
+        .scroll-wrapper {
+            padding: 12px 18px;
+            max-width: 350px;
+            width: max-content;
+            max-height: 150px;
+            overflow-y: auto;
+            word-wrap: break-word;
+            line-height: 1.5;
+            font-family: 'Microsoft YaHei', sans-serif;
+            font-size: var(--main-font-size);
+            color: #333;
+        }
+
+        .scroll-wrapper::-webkit-scrollbar { width: 6px; }
+        .scroll-wrapper::-webkit-scrollbar-track { background: transparent; }
+        .scroll-wrapper::-webkit-scrollbar-thumb { background: #ffb6c1; border-radius: 3px; }
 
         #chat-bubble::after {
             content: '';
@@ -73,15 +76,15 @@
             padding: 10px 20px;
             color: white;
             font-family: 'Microsoft YaHei', sans-serif;
-            font-size: 14px;
+            font-size: 16px;
             outline: none;
-            width: 250px;
+            width: 300px;
             backdrop-filter: blur(5px);
 
             resize: none;
             overflow-y: hidden;
             box-sizing: border-box;
-            min-height: 40px;
+            min-height: 44px;
             max-height: 120px;
             line-height: 20px;
             display: block;
@@ -143,6 +146,8 @@
             model.interactive = true;
             model.buttonMode = true;
 
+            let currentMouthOpen = 0;
+
             app.ticker.add(() => {
                 let bounds = window.romashaModel.getBounds();
                 let centerX = bounds.x + bounds.width / 2;
@@ -158,13 +163,21 @@
                     for(let i = 0; i < dataArray.length; i++) {
                         sum += dataArray[i];
                     }
+
                     let average = sum / dataArray.length;
 
-                    let mouthOpen = average / 80.0;
-                    if (mouthOpen > 1.0) mouthOpen = 1.0;
-                    if (mouthOpen < 0.05) mouthOpen = 0.0;
+                    let targetMouthOpen = average / 80.0;
+                    if (targetMouthOpen > 1.0) targetMouthOpen = 1.0;
+                    if (targetMouthOpen < 0.05) targetMouthOpen = 0.0;
 
-                    window.romashaModel.internalModel.coreModel.setParameterValueById('ParamMouthOpenY', mouthOpen);
+                    currentMouthOpen = currentMouthOpen + (targetMouthOpen - currentMouthOpen) * 0.3;
+
+                    window.romashaModel.internalModel.coreModel.setParameterValueById('ParamMouthOpenY', currentMouthOpen);
+                } else {
+                    currentMouthOpen = currentMouthOpen + (0 - currentMouthOpen) * 0.2;
+                    if (currentMouthOpen > 0.01 && window.romashaModel) {
+                        window.romashaModel.internalModel.coreModel.setParameterValueById('ParamMouthOpenY', currentMouthOpen);
+                    }
                 }
 
                 let bootOffset = bounds.height * 0.45;
@@ -267,21 +280,23 @@
                         document.title = "CHAT:" + this.value.trim();
                         this.value = '';
                         inputContainer.classList.remove('active');
-                        this.style.height = '40px';
+                        this.style.height = '44px';
+                        this.style.overflowY = 'hidden';
                     }
                 }
             });
 
             window.showBubble = function(text, keepAlive = false) {
-                chatBubble.innerHTML = text;
+                chatBubble.innerHTML = `<div class="scroll-wrapper">${text}</div>`;
                 chatBubble.style.opacity = 1;
 
-                chatBubble.scrollTop = chatBubble.scrollHeight;
-
-                if(bubbleTimeout) clearTimeout(bubbleTimeout);
+                let scrollWrapper = chatBubble.querySelector('.scroll-wrapper');
+                if (scrollWrapper) {
+                    scrollWrapper.scrollTop = scrollWrapper.scrollHeight;
+                }
 
                 if (!keepAlive) {
-                    let displayTime = Math.max(5000, htmlText.replace(/<[^>]+>/g, '').length * 80);
+                    let displayTime = Math.max(5000, text.replace(/<[^>]+>/g, '').length * 300);
                     bubbleTimeout = setTimeout(() => {
                         chatBubble.style.opacity = 0;
                     }, displayTime);
@@ -348,7 +363,6 @@
                                     // `<span style="color:#ffb6c1; font-weight:bold;">判定部位: ${bodyPart}</span>`;
                     // window.showBubble(debugInfo);
 
-
                     document.title = "TOUCH:" + bodyPart;
                 }
             });
@@ -377,7 +391,68 @@
                 document.title = "WHEEL_STATE:" + model.scale.x + ":" + model.x + ":" + model.y;
             });
 
-            window.playRomashaMotion = function(group, index) { model.motion(group, index, 3); };
+            //window.playRomashaMotion = function(group, index) { model.motion(group, index, 3); };
+            let currentIdleIndex = 24;
+            let isActionPlaying = false;
+            let idleLoopId = 0;
+            let actionId = 0;
+
+
+            window.playRomashaMotion = function(group, index) {
+                isActionPlaying = true;
+                idleLoopId++;
+                let currentActionId = ++actionId;
+
+                let startTime = Date.now();
+
+                if (model.internalModel && model.internalModel.motionManager) {
+                    model.internalModel.motionManager.stopAllMotions();
+                }
+
+                model.motion(group, index, 3).finally(() => {
+                    if (currentActionId === actionId) {
+                        let elapsedTime = Date.now() - startTime;
+                        let waitTime = 3500 - elapsedTime;
+                        if (waitTime < 50) waitTime = 50;
+                        setTimeout(() => {
+                            if (currentActionId === actionId) {
+                                isActionPlaying = false;
+
+                                if (model.internalModel && model.internalModel.coreModel) {
+                                    model.internalModel.coreModel.setParameterValueById('ParamCheek', 0.0);
+                                    model.internalModel.coreModel.setParameterValueById('angry', 0.0);
+                                }
+
+                                playCurrentIdle();
+                            }
+                        }, waitTime);
+                    }
+                });
+            };
+
+            window.setRomashaIdleMotion = function(index) {
+                currentIdleIndex = index;
+                if (!isActionPlaying) {
+                    idleLoopId++;
+                    playCurrentIdle();
+                }
+            };
+
+            function playCurrentIdle() {
+                let currentLoopId = ++idleLoopId;
+                model.motion('BaseMotions', currentIdleIndex, 1).finally(() => {
+
+                    if(currentLoopId === idleLoopId && !isActionPlaying) {
+                        setTimeout(() => {
+                            playCurrentIdle();
+                        }, 50);
+                    }
+                });
+            }
+
+            setTimeout(() => { playCurrentIdle(); }, 1000);
+
+
             window.setRomashaParam = function(paramId, value) { model.internalModel.coreModel.setParameterValueById(paramId, value); };
 
             window.lastMaskRects = [];

@@ -42,13 +42,552 @@ import queue
 import base64
 import requests
 from PyQt5.QtCore import Qt, QUrl, QThread, pyqtSignal, QTimer, QRect
-from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QMessageBox
+from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QMessageBox,
+                             QDialog, QTextBrowser, QPushButton, QProgressBar, QLineEdit,
+                             QHBoxLayout, QLabel, QScrollArea, QInputDialog, QSizePolicy, QComboBox)
 from PyQt5.QtWebEngineWidgets import QWebEngineView, QWebEngineSettings
-from PyQt5.QtGui import QRegion, QCursor                   
+from PyQt5.QtGui import QRegion, QCursor, QFont, QColor, QTextCursor, QIcon                   
 
 import llm_brain
 import motion_manager
 import outfit_manager
+import story_manager
+import lorebook_manager
+
+
+                                            
+                           
+                                            
+class NameEditDialog(QDialog):
+    def __init__(self, current_name, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle('命运观测终端 - 玩家档案')
+                            
+        self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)
+        self.resize(320, 160)
+        self.setStyleSheet("background-color: #f8f9fa; color: #333; border-radius: 8px;")
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(15)
+
+        label = QLabel("请输入你在这个世界中的名字：")
+        label.setFont(QFont("Microsoft YaHei", 10, QFont.Bold))
+        layout.addWidget(label)
+
+        self.name_input = QLineEdit(self)
+        self.name_input.setText(current_name)
+        self.name_input.setFont(QFont("Microsoft YaHei", 11))
+        self.name_input.setStyleSheet("border: 2px solid #ffb6c1; padding: 6px; border-radius: 6px; background: white;")
+        layout.addWidget(self.name_input)
+
+        btn_layout = QHBoxLayout()
+        self.save_btn = QPushButton("确认修改")
+        self.save_btn.setStyleSheet("QPushButton { background: #ffb6c1; color: white; border-radius: 5px; padding: 8px; font-weight: bold;} QPushButton:hover { background: #ff99ab; }")
+        self.save_btn.clicked.connect(self.accept)
+
+        self.cancel_btn = QPushButton("取消")
+        self.cancel_btn.setStyleSheet("QPushButton { background: #ddd; color: #333; border-radius: 5px; padding: 8px; font-weight: bold;} QPushButton:hover { background: #ccc; }")
+        self.cancel_btn.clicked.connect(self.reject)
+
+        btn_layout.addWidget(self.save_btn)
+        btn_layout.addWidget(self.cancel_btn)
+        layout.addLayout(btn_layout)
+
+    def get_name(self):
+        return self.name_input.text().strip()
+
+class StoryWindow(QWidget):
+                                    
+    choice_made = pyqtSignal(str)
+    name_changed = pyqtSignal(str)               
+
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Princess Synergy - 命运观测终端")
+                  
+        icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'web/favicon.ico')
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
+        self.resize(1000, 750)
+                        
+                                                           
+        self.setWindowFlags(Qt.Window)
+        self.setStyleSheet("background-color: #f8f9fa; color: #333; border-radius: 10px;")
+
+             
+        self.layout = QVBoxLayout(self)
+        self.layout.setContentsMargins(15, 15, 15, 15)
+        self.layout.setSpacing(10)
+
+                               
+        top_bar = QHBoxLayout()
+        title_label = QLabel("📖 命运世界线推演日志")
+        title_label.setFont(QFont("Microsoft YaHei", 12, QFont.Bold))
+        title_label.setStyleSheet("color: #666;")
+
+                         
+        self.status_label = QLabel("")
+        self.status_label.setFont(QFont("Microsoft YaHei", 11, QFont.Bold))
+
+        current_name = llm_brain.config.get("player_name", "未命名")
+                         
+        self.name_btn = QPushButton(f"👤 当前玩家: {current_name}")
+        self.name_btn.setFixedWidth(180)
+        self.name_btn.setStyleSheet("""
+                            QPushButton { background: #ffb6c1; color: white; border-radius: 5px; padding: 6px; font-weight: bold;}
+                            QPushButton:hover { background: #ff99ab; }
+                        """)
+        self.name_btn.clicked.connect(self.edit_player_name)
+
+                         
+                                     
+        self.is_generating_story = True
+        self.action_btn = QPushButton("🛑 停止推演")
+        self.action_btn.setFixedWidth(120)
+        self.action_btn.setStyleSheet("""
+                    QPushButton { background: #e74c3c; color: white; border-radius: 5px; padding: 6px; font-weight: bold;}
+                    QPushButton:hover { background: #c0392b; }
+                """)
+        self.action_btn.clicked.connect(self.toggle_generation)
+
+                       
+        self.exit_btn = QPushButton("🚪 退出推演")
+        self.exit_btn.setFixedWidth(100)
+        self.exit_btn.setStyleSheet("""
+                    QPushButton { background: #95a5a6; color: white; border-radius: 5px; padding: 6px; font-weight: bold;}
+                    QPushButton:hover { background: #7f8c8d; }
+                """)
+                                                                
+        self.exit_btn.clicked.connect(self.close)
+
+                       
+        self.level_combo = QComboBox()
+        self.level_combo.addItems(["参与度 0", "参与度 1", "参与度 2", "参与度 3"])
+        self.level_combo.setCurrentIndex(2)            
+        self.level_combo.setStyleSheet("""
+                    QComboBox { background: rgba(255,255,255,0.9); border: 1px solid #ffb6c1; border-radius: 5px; padding: 4px 18px 4px 8px; font-size: 12px; color: #6031e2; font-weight: bold; }
+                    QComboBox::drop-down { subcontrol-origin: padding; subcontrol-position: top right; width: 15px; border-left: none; }
+                    QComboBox::down-arrow { width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 5px solid #6031e2; margin-right: 4px; }
+                """)
+
+        top_bar.addWidget(title_label)
+        top_bar.addWidget(self.status_label)
+        top_bar.addStretch()
+        top_bar.addWidget(self.level_combo)           
+        top_bar.addWidget(self.name_btn)
+        top_bar.addWidget(self.action_btn)           
+        top_bar.addWidget(self.exit_btn)            
+        self.layout.addLayout(top_bar)
+
+                                  
+        self.history_browser = QTextBrowser()
+        self.history_browser.setFont(QFont("Microsoft YaHei", 11))
+        self.history_browser.setStyleSheet("""
+                    QTextBrowser {
+                        background-color: #f1f3f5; 
+                        border: 1px solid #ddd; 
+                        border-radius: 8px; 
+                        padding: 10px;
+                    }
+                    /* 专属滚动条美化 */
+                    QScrollBar:vertical {
+                        border: none; background: #e9ecef; width: 12px; margin: 2px 2px 2px 0; border-radius: 6px;
+                    }
+                    QScrollBar::handle:vertical {
+                        background: #ffb6c1; min-height: 40px; border-radius: 6px;
+                    }
+                    QScrollBar::handle:vertical:hover {
+                        background: #ff99ab;
+                    }
+                    QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical, QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+                        border: none; background: none;
+                    }
+                """)
+        self.layout.addWidget(self.history_browser, stretch=5)
+
+                                  
+        self.current_browser = QTextBrowser()
+        self.current_browser.setFont(QFont("Microsoft YaHei", 12))
+        self.current_browser.setStyleSheet("""
+                    QTextBrowser {
+                        background-color: #ffffff; 
+                        border: 2px solid #ffb6c1; 
+                        border-radius: 8px; 
+                        padding: 10px;
+                    }
+                    /* 专属滚动条美化 */
+                    QScrollBar:vertical {
+                        border: none; background: transparent; width: 12px; margin: 2px 2px 2px 0; border-radius: 6px;
+                    }
+                    QScrollBar::handle:vertical {
+                        background: #ffb6c1; min-height: 40px; border-radius: 6px;
+                    }
+                    QScrollBar::handle:vertical:hover {
+                        background: #ff99ab;
+                    }
+                    QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical, QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+                        border: none; background: none;
+                    }
+                """)
+        self.layout.addWidget(self.current_browser, stretch=3)
+
+                          
+        self.options_widget = QWidget()
+                                                              
+                                                   
+        self.options_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.options_main_layout = QVBoxLayout(self.options_widget)
+        self.options_main_layout.setContentsMargins(0, 0, 0, 0)
+        self.options_main_layout.setSpacing(12)               
+                                                                             
+                                   
+
+                               
+        self.buttons_container = QWidget()
+        self.buttons_layout = QVBoxLayout(self.buttons_container)
+        self.buttons_layout.setContentsMargins(0, 0, 0, 0)
+        self.buttons_layout.setSpacing(8)
+        self.options_main_layout.addWidget(self.buttons_container)
+
+                            
+        self.custom_input_container = QWidget()
+        self.custom_input_layout = QHBoxLayout(self.custom_input_container)
+        self.custom_input_layout.setContentsMargins(0, 0, 0, 0)
+        self.custom_input_layout.setSpacing(8)
+
+        self.custom_choice_input = QLineEdit()
+        self.custom_choice_input.setPlaceholderText("或者...不满意选项？亲自输入你期望的走向！(按回车发送)")
+        self.custom_choice_input.setFont(QFont("Microsoft YaHei", 10))
+        self.custom_choice_input.setStyleSheet(
+            "border: 1px solid #ffb6c1; border-radius: 5px; padding: 8px; background: white;")
+                                       
+        self.custom_choice_input.textChanged.connect(self.pause_countdown)
+        self.custom_choice_input.returnPressed.connect(self.send_custom_choice)
+
+        self.custom_send_btn = QPushButton("发送抉择")
+        self.custom_send_btn.setFixedWidth(100)
+        self.custom_send_btn.setStyleSheet(
+            "QPushButton { background: #ffb6c1; color: white; border-radius: 5px; padding: 8px; font-weight: bold;} QPushButton:hover { background: #ff99ab; }")
+        self.custom_send_btn.clicked.connect(self.send_custom_choice)
+
+        self.custom_input_layout.addWidget(self.custom_choice_input)
+        self.custom_input_layout.addWidget(self.custom_send_btn)
+        self.options_main_layout.addWidget(self.custom_input_container)
+
+        self.layout.addWidget(self.options_widget, 0)
+        self.options_widget.hide()
+
+                          
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setMaximum(600)                      
+        self.progress_bar.setTextVisible(False)
+        self.progress_bar.setFixedHeight(6)
+        self.progress_bar.setStyleSheet(
+            "QProgressBar { border: none; background-color: #e9ecef; border-radius: 3px; } QProgressBar::chunk { background-color: #ffb6c1; }")
+        self.layout.addWidget(self.progress_bar, 0)          
+        self.progress_bar.hide()
+
+                
+        self.target_text = ""
+        self.current_text = ""
+        self.pending_options = []
+        self.time_left = 600                     
+
+                                     
+        self.typewriter_timer = QTimer(self)
+        self.typewriter_timer.timeout.connect(self.typewriter_tick)
+
+                  
+        self.countdown_timer = QTimer(self)
+        self.countdown_timer.timeout.connect(self.countdown_tick)
+
+                            
+        scrollbar_style = """
+                    QScrollBar:vertical {
+                        border: none;
+                        background: #f1f3f5;
+                        width: 12px;
+                        border-radius: 6px;
+                    }
+                    QScrollBar::handle:vertical {
+                        background: #ffb6c1;
+                        min-height: 30px;
+                        border-radius: 6px;
+                    }
+                    QScrollBar::handle:vertical:hover {
+                        background: #ff99ab;
+                    }
+                    QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                        border: none;
+                        background: none;
+                    }
+                    QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+                        background: none;
+                    }
+                """
+                           
+        self.setStyleSheet(self.styleSheet() + scrollbar_style)
+
+    def edit_player_name(self):
+        current_name = llm_brain.config.get("player_name", "")
+                       
+        dialog = NameEditDialog(current_name, self)
+        if dialog.exec_() == QDialog.Accepted:
+            new_name = dialog.get_name()
+            if new_name:
+                self.name_changed.emit(new_name)
+                            
+                self.name_btn.setText(f"👤 当前玩家: {new_name}")
+
+    def toggle_generation(self):
+        if self.is_generating_story:
+                           
+            self.typewriter_timer.stop()
+            self.countdown_timer.stop()
+            self.is_generating_story = False
+            self.action_btn.setText("▶ 继续推演")
+            self.action_btn.setStyleSheet("""
+                QPushButton { background: #2ecc71; color: white; border-radius: 5px; padding: 6px; font-weight: bold;}
+                QPushButton:hover { background: #27ae60; }
+            """)
+
+                        
+            self.status_label.setText(" 已暂停")
+            self.status_label.setStyleSheet("color: #d35400;")      
+
+            self.choice_made.emit("/CANCEL_GENERATION")
+        else:
+                            
+            self.countdown_timer.stop()
+            self.options_widget.hide()
+            self.progress_bar.hide()
+
+                                
+            self.status_label.setText(" 推演中...")
+            self.status_label.setStyleSheet("color: #e74c3c;")
+            self.is_generating_story = True
+            self.action_btn.setText("🛑 停止推演")
+            self.action_btn.setStyleSheet("""
+                                    QPushButton { background: #e74c3c; color: white; border-radius: 5px; padding: 6px; font-weight: bold;}
+                                    QPushButton:hover { background: #c0392b; }
+                                """)
+
+            self.choice_made.emit("*(顺应局势，继续推进剧情)*")
+
+    def prepare_new_chapter(self, prompt_desc=""):
+        self.is_generating_story = True
+        self.action_btn.setText("🛑 停止推演")
+        self.action_btn.setStyleSheet("""
+                    QPushButton { background: #e74c3c; color: white; border-radius: 5px; padding: 6px; font-weight: bold;}
+                    QPushButton:hover { background: #c0392b; }
+                """)
+
+                        
+        self.status_label.setText(" 推演中...")
+        self.status_label.setStyleSheet("color: #e74c3c;")      
+
+        self.current_browser.clear()
+        self.current_text = ""
+        self.target_text = ""
+        self.options_widget.hide()
+        self.progress_bar.hide()
+                         
+        for i in reversed(range(self.buttons_layout.count())):
+            widget = self.buttons_layout.itemAt(i).widget()
+            if widget is not None:
+                widget.deleteLater()              
+
+                                 
+        self.custom_choice_input.clear()
+
+        if prompt_desc:
+            self.history_browser.append(f"<span style='color:#6031e2;'><b>{prompt_desc}</b></span><br>")
+
+        self.show()
+        self.typewriter_timer.start(20)              
+
+    def update_streaming_text(self, text):
+        self.target_text = text
+
+    def typewriter_tick(self):
+        if self.current_text != self.target_text:
+            next_idx = len(self.current_text)
+            self.current_text += self.target_text[next_idx:next_idx + 4]                
+                                                       
+            self.current_browser.setText(self.current_text.replace("\n", "<br>"))
+            cursor = self.current_browser.textCursor()
+            cursor.movePosition(QTextCursor.End)
+            self.current_browser.setTextCursor(cursor)
+
+                                   
+    def finalize_chapter(self, final_text, options):
+        try:
+            self.typewriter_timer.stop()
+
+                                        
+            self.is_generating_story = False
+            self.action_btn.setText("▶ 继续推演")
+            self.action_btn.setStyleSheet("""
+                        QPushButton { background: #2ecc71; color: white; border-radius: 5px; padding: 6px; font-weight: bold;}
+                        QPushButton:hover { background: #27ae60; }
+                    """)
+
+                                                             
+            safe_text = final_text.replace("\n", "<br>")
+            self.current_browser.setText(safe_text)
+                             
+            self.history_browser.append(f"<span style='color:#333;'>{safe_text}</span><br><br>")
+
+                    
+            self.pending_options = options
+            if self.pending_options:
+                                          
+                self.status_label.setText(" 请抉择...")
+                self.status_label.setStyleSheet("color: #2ecc71;")
+
+                for opt_text in self.pending_options:
+                    btn = QPushButton(opt_text)
+                    btn.setFont(QFont("Microsoft YaHei", 10))
+                    btn.setStyleSheet(
+                        "QPushButton { background-color: #fff; border: 1px solid #ddd; border-radius: 5px; padding: 10px; text-align: left; } QPushButton:hover { background-color: #fff0f5; border: 1px solid #ffb6c1; }")
+                    btn.clicked.connect(lambda checked, text=opt_text: self.on_option_clicked(text))
+                    self.buttons_layout.addWidget(btn)
+
+                self.options_widget.show()
+                self.time_left = 600
+                self.progress_bar.setMaximum(600)                
+                self.progress_bar.setValue(600)
+                                   
+                self.progress_bar.setStyleSheet(
+                    "QProgressBar { border: none; background-color: #e9ecef; border-radius: 3px; } QProgressBar::chunk { background-color: #ffb6c1; }")
+                self.progress_bar.show()
+                self.countdown_timer.start(100)
+
+        except Exception as e:
+            print(f"⚠️ [UI渲染警告]: 选项渲染受阻 -> {e}")
+
+    def update_chapter_text(self, final_text):
+        try:
+            self.typewriter_timer.stop()
+            self.is_generating_story = False
+            self.action_btn.setText("▶ 继续推演")
+            self.action_btn.setStyleSheet("""
+                        QPushButton { background: #2ecc71; color: white; border-radius: 5px; padding: 6px; font-weight: bold;}
+                        QPushButton:hover { background: #27ae60; }
+                    """)
+            safe_text = final_text.replace("\n", "<br>")
+            self.current_browser.setText(safe_text)
+            self.history_browser.append(f"<span style='color:#333;'>{safe_text}</span><br><br>")
+        except Exception as e:
+            print(f"⚠️ [UI渲染警告]: 文本渲染受阻 -> {e}")
+
+    def show_options(self, options):
+        try:
+            self.pending_options = options
+            if self.pending_options:
+                                          
+                self.status_label.setText(" 请抉择...")
+                self.status_label.setStyleSheet("color: #2ecc71;")
+
+                                 
+                for i in reversed(range(self.buttons_layout.count())):
+                    widget = self.buttons_layout.itemAt(i).widget()
+                    if widget is not None:
+                        widget.deleteLater()              
+
+                for opt_text in self.pending_options:
+                    btn = QPushButton(opt_text)
+                    btn.setFont(QFont("Microsoft YaHei", 10))
+                    btn.setStyleSheet(
+                        "QPushButton { background-color: #fff; border: 1px solid #ddd; border-radius: 5px; padding: 10px; text-align: left; } QPushButton:hover { background-color: #fff0f5; border: 1px solid #ffb6c1; }")
+                    btn.clicked.connect(lambda checked, text=opt_text: self.on_option_clicked(text))
+                    self.buttons_layout.addWidget(btn)
+
+                self.options_widget.show()
+                self.time_left = 600
+                self.progress_bar.setMaximum(600)                
+                self.progress_bar.setValue(600)
+                                    
+                self.progress_bar.setStyleSheet(
+                    "QProgressBar { border: none; background-color: #e9ecef; border-radius: 3px; } QProgressBar::chunk { background-color: #ffb6c1; }")
+                self.progress_bar.show()
+                self.countdown_timer.start(100)
+        except Exception as e:
+            print(f"⚠️ [UI渲染警告]: 选项渲染受阻 -> {e}")
+
+    def countdown_tick(self):
+        self.time_left -= 1
+        self.progress_bar.setValue(self.time_left)
+        if self.time_left <= 0:
+            self.countdown_timer.stop()
+            self.on_option_clicked("*(沉默不语。请顺应局势自动推进)*")
+
+    def on_option_clicked(self, choice_text):
+        self.countdown_timer.stop()
+        self.options_widget.hide()
+        self.progress_bar.hide()
+
+                         
+        self.status_label.setText(" 推演中...")
+        self.status_label.setStyleSheet("color: #e74c3c;")
+        self.is_generating_story = True
+        self.action_btn.setText("🛑 停止推演")
+        self.action_btn.setStyleSheet("""
+                            QPushButton { background: #e74c3c; color: white; border-radius: 5px; padding: 6px; font-weight: bold;}
+                            QPushButton:hover { background: #c0392b; }
+                        """)
+
+        self.choice_made.emit(choice_text)
+
+    def pause_countdown(self, text):
+        if text.strip() and self.countdown_timer.isActive():
+            self.countdown_timer.stop()
+            self.status_label.setText(" 抉择中 (输入中...)")
+            self.status_label.setStyleSheet("color: #f39c12;")           
+                                
+            self.progress_bar.setStyleSheet(
+                "QProgressBar { border: none; background-color: #e9ecef; border-radius: 3px; } QProgressBar::chunk { background-color: #f39c12; }")
+
+    def send_custom_choice(self):
+        choice_text = self.custom_choice_input.text().strip()
+        if choice_text:
+            self.custom_choice_input.clear()            
+                                 
+            self.on_option_clicked(f"*(玩家亲自干涉)*: {choice_text}")
+
+    def closeEvent(self, event):
+                                  
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle('结束推演')
+        msg_box.setText(
+            "确定要彻底结束本次命运推演，让她回归日常模式吗？\n（当前的推演进度将不会保留在面板上，但已存入本地小说日志）")
+        msg_box.setIcon(QMessageBox.Question)
+
+                         
+        yes_btn = msg_box.addButton("确定", QMessageBox.YesRole)
+        no_btn = msg_box.addButton("取消", QMessageBox.NoRole)
+
+                              
+        msg_box.setDefaultButton(no_btn)
+
+                     
+        msg_box.exec_()
+
+                      
+        if msg_box.clickedButton() == yes_btn:
+            self.countdown_timer.stop()
+            self.typewriter_timer.stop()
+            self.choice_made.emit("/EXIT_STORY_MODE")
+
+                         
+                                       
+                                                        
+            self.status_label.setText("")
+            self.hide()
+
+                                         
+        event.ignore()
 
 
 class BrainWorker(QThread):
@@ -69,6 +608,7 @@ class BrainWorker(QThread):
                 continue
 
             user_text, interrupted_text = task
+            self.is_cancelled = False
 
             if user_text == "/SYSTEM_RESET_MEMORY":
                 try:
@@ -76,8 +616,20 @@ class BrainWorker(QThread):
                     memory_manager.clear_all_memories()
                                            
                     llm_brain.chat_history.clear()
+                                         
+                    story_manager.clear_summary()
+                                                
+                    lorebook_manager.clear_dynamic_lore()
+                                                
+                    story_manager.archive_novel_log()
                                                             
                     llm_brain.config["intimacy"] = 0
+                                            
+                    llm_brain.config["player_name"] = ""
+                                               
+                    llm_brain.config["current_location"] = "罗玛莎的房间"
+                    llm_brain.config["current_chapter"] = 1
+                    llm_brain.config["is_first_encounter"] = True                          
                     llm_brain.save_config()
                     print("💔 [记忆消散]: 曾经相处的点滴如沙般流逝，你们回到了最初相遇时的陌生与戒备。\n")
 
@@ -86,7 +638,24 @@ class BrainWorker(QThread):
                 self.task_queue.task_done()
                 continue
 
-            self.is_cancelled = False
+                              
+            if user_text.startswith("/STORY_TICK_"):
+                try:
+                                                 
+                                                
+                    parts = user_text.split("_", 3)
+                    level = parts[2]
+                    choice_text = parts[3] if len(parts) > 3 else ""
+
+                    llm_brain.stream_story_with_romasha(level, choice_text, self)
+                except Exception as e:
+                    print(f"⚠️ [命运纠缠]: 故事线推演失败 ({e})")
+
+                if not self.is_cancelled:
+                    self.task_finished.emit()
+                self.task_queue.task_done()
+                continue
+
             try:
                 llm_brain.stream_chat_with_romasha(user_text, interrupted_text, self)
             except Exception as e:
@@ -112,13 +681,14 @@ class TTSWorker(QThread):
         super().__init__()
         self.task_queue = queue.Queue()
         self.running = True
+        self.is_cancelled = False             
 
                  
     def translate_to_japanese(self, text):
         try:
             api_type = llm_brain.config.get("api_type", "openai").lower()
             messages = [
-                {"role": "system", "content": "你是一个精准的中译日翻译器，请将用户的中文台词精准直译翻译成对应的日文。【极其重要】：如果文本中包含形如 [quick_breath]、[sigh] 等英文控制标签，你必须原样保留它们，并将它们插入到日文中合理的位置。绝对不要翻译这些方括号内的标签！只需要输出最终的日文结果，不要任何解释。"},
+                {"role": "system", "content": "你是一个精准的中译日翻译器，请将玩家的中文台词精准直译翻译成对应的日文。【极其重要】：如果文本中包含形如 [quick_breath]、[sigh] 等英文控制标签，你必须原样保留它们，并将它们插入到日文中合理的位置。绝对不要翻译这些方括号内的标签！只需要输出最终的日文结果，不要任何解释。"},
                 {"role": "user", "content": text}
             ]
             if api_type == "openai":
@@ -151,10 +721,12 @@ class TTSWorker(QThread):
             except queue.Empty:
                 continue
 
+            self.is_cancelled = False              
+
                                     
                                            
                                                                        
-            clean_text = re.sub(r'\[(act_|mood_|intimacy_|wear_|hair_).*?\]', '', text)
+            clean_text = re.sub(r'\[(act_|mood_|intimacy_|wear_|hair_|set_name_).*?\]', '', text)
             clean_text = re.sub(r'（内心：.*?）', '', clean_text)
             clean_text = clean_text.strip()
 
@@ -167,10 +739,15 @@ class TTSWorker(QThread):
 
                                                    
             instruct_text = ""
-            match = re.match(r'^([\w\u4e00-\u9fa5]+)<\|endofprompt\|>(.*)$', clean_text)
+                                               
+            match = re.match(r'^(.*?)<\|endofprompt\|>(.*)$', clean_text, re.DOTALL)
             if match:
-                instruct_text = match.group(1)            
-                clean_text = match.group(2).strip()                                 
+                raw_instruct = match.group(1)          
+                                                   
+                instruct_text = re.sub(r'[^\w\u4e00-\u9fa5]', '', raw_instruct)
+                clean_text = match.group(2).strip()                                
+                                   
+                clean_text = clean_text.replace("<|endofprompt|>", "")
 
                                                    
             if llm_brain.config.get("tts_translate_to_ja", False) and clean_text:
@@ -195,6 +772,12 @@ class TTSWorker(QThread):
                         "speed": 1.0
                     }
                     response = requests.post(url, json=payload, proxies=proxies, timeout=60.0)
+
+                                                                  
+                    if self.is_cancelled:
+                        print("🔇 [底层拦截]: 语音生成完毕，但已被玩家的最新举动打断，该语音包作废。")
+                        self.task_queue.task_done()
+                        continue
 
                     if response.status_code == 200:
                         b64_audio = base64.b64encode(response.content).decode('utf-8')
@@ -226,7 +809,13 @@ class TTSWorker(QThread):
                     }
 
                                                                  
-                    response = requests.get(url, params=params, proxies=proxies, timeout=30.0)
+                    response = requests.get(url, params=params, proxies=proxies, timeout=60.0)
+
+                                                              
+                    if self.is_cancelled:
+                        print("🔇 [底层拦截]: SoVITS语音生成完毕，但已被玩家打断，作废。")
+                        self.task_queue.task_done()
+                        continue
 
                     if response.status_code == 200:
                                               
@@ -250,7 +839,7 @@ class TTSWorker(QThread):
             except requests.exceptions.Timeout:
                 print(f"\n🔇 [听觉迷雾]: 她似乎在犹豫，声音卡在了喉咙里，过了好一会都没能发出声来...")
                 print(
-                    f"   (🛠️ 隐秘线索: 处理超过了 30 秒。因为电脑配置较差，显卡可能仍在加载模型，请耐心再跟她聊一句试试)")
+                    f"   (🛠️ 隐秘线索: 处理超过了 60 秒。因为电脑配置较差，显卡可能仍在加载模型，请耐心再跟她聊一句试试)")
                 self.audio_ready.emit("", False, "timeout")
             except Exception as e:
                 print(f"\n🔇 [听觉迷雾]: 也许是太紧张了，她的声音细若游丝，几乎无法捕捉...")
@@ -305,6 +894,9 @@ class RomashaDesktop(QMainWindow):
         self.taol_recover_timer.setSingleShot(True)
         self.taol_recover_timer.timeout.connect(self.recover_taol_fall)
 
+                                     
+        self.last_text_finish_time = datetime.datetime.now()
+
                              
         self.auto_save_timer = QTimer(self)
         self.auto_save_timer.setSingleShot(True)
@@ -335,6 +927,11 @@ class RomashaDesktop(QMainWindow):
 
         self.init_ui()
 
+                            
+        self.story_window = StoryWindow()
+        self.story_window.choice_made.connect(self.handle_story_choice)
+        self.story_window.name_changed.connect(self.update_player_name)
+
     def init_ui(self):
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
         self.setAttribute(Qt.WA_TranslucentBackground)
@@ -363,6 +960,8 @@ class RomashaDesktop(QMainWindow):
         settings = self.browser.settings()
         settings.setAttribute(QWebEngineSettings.LocalContentCanAccessFileUrls, True)
         settings.setAttribute(QWebEngineSettings.LocalContentCanAccessRemoteUrls, True)
+                                   
+        settings.setAttribute(QWebEngineSettings.PlaybackRequiresUserGesture, False)
         self.browser.page().setBackgroundColor(Qt.transparent)
 
         self.browser.titleChanged.connect(self.on_html_signal)
@@ -406,9 +1005,62 @@ class RomashaDesktop(QMainWindow):
                                                 
         self.notification_timer.start(duration)
 
+    def update_player_name(self, new_name):
+        llm_brain.config["player_name"] = new_name
+        llm_brain.save_config()
+                    
+        self.show_system_notification(
+            f"<span style='color:#6031e2; font-size: var(--sub-font-size);'><i>(玩家名字已更新为：{new_name})</i></span>",
+            2000)
+
+    def handle_story_choice(self, choice_text):
+        """接收来自剧情窗口的选择"""
+        if choice_text == "/CANCEL_GENERATION":
+                                     
+            self.brain_worker.is_cancelled = True
+            self.story_window.current_browser.append(
+                "<br><br><span style='color:#e74c3c;'><b>[系统]: ⚠️ 推演已被手动强行中止。你可以直接在下方做出抉择。</b></span>")
+                             
+            self.flush_pending_tags()
+            self.is_waiting_for_voice = False
+            return
+
+        if choice_text == "/EXIT_STORY_MODE":
+            self.is_story_mode = False
+                                                   
+            self.brain_worker.is_cancelled = True
+
+                                           
+            self.flush_pending_tags()
+            self.is_waiting_for_voice = False
+
+            self.show_system_notification(
+                "<span style='color:#e74c3c; font-size: var(--sub-font-size);'><i>(命运观测终端已关闭，切回日常模式...)</i></span>",
+                3000)
+            print("\n💻 [系统]: 玩家关闭了剧情窗口，回归日常陪伴。")
+            return
+
+                      
+        print(f"\n[{datetime.datetime.now().strftime('%H:%M:%S')}] ⚖️ 命运抉择: {choice_text}")
+
+                        
+        self.show_system_notification("<span style='color:#6031e2; font-size: var(--sub-font-size);'><i>(正在推演下个阶段的未来...)</i></span>", 4000)
+
+                                                 
+        current_level = str(self.story_window.level_combo.currentIndex())
+        self.start_new_thought(f"/STORY_TICK_{current_level}_{choice_text}")
+
+
     def restore_bubble_state(self):
         """恢复被指令打断的对话气泡"""
         self.is_showing_notification = False
+
+                                                    
+        if getattr(self, 'is_story_mode', False):
+            bubble_html = "<span style='color:#6031e2; font-size: var(--sub-font-size);'><i>(正在进行世界线深度推演，请在日志面板查看...)</i></span>"
+            self.browser.page().runJavaScript(f"window.showBubble(\"{bubble_html}\", true);")
+            return
+                  
 
                                         
         if self.is_waiting_for_voice:
@@ -427,8 +1079,22 @@ class RomashaDesktop(QMainWindow):
                                                       
             safe_text = self.current_display_text.replace("\\", "\\\\").replace("\n", "<br>")
             final_html = self.current_context_html + safe_text
-            safe_html = final_html.replace("'", "\\'")
-            self.browser.page().runJavaScript(f"window.showBubble('{safe_html}', false);")
+
+                                                        
+            clean_text_len = len(re.sub(r'<[^>]+>', '', final_html))
+            display_time_seconds = max(5.0, clean_text_len * 0.3)
+
+                               
+            elapsed = (datetime.datetime.now() - getattr(self, 'last_text_finish_time',
+                                                         datetime.datetime.now())).total_seconds()
+
+            if elapsed < display_time_seconds:
+                                 
+                safe_html = final_html.replace("'", "\\'")
+                self.browser.page().runJavaScript(f"window.showBubble('{safe_html}', false);")
+            else:
+                                      
+                self.browser.page().runJavaScript("document.getElementById('chat-bubble').style.opacity = 0;")
 
     def apply_initial_state(self):
         now = datetime.datetime.now()
@@ -494,9 +1160,15 @@ class RomashaDesktop(QMainWindow):
                                                     
                                                    
         if was_deep_sleeping:
-            self.trigger_motion('BaseMotions', self.current_idle_motion)
+                                                                         
+                      
+            self.set_idle_motion(self.current_idle_motion)
 
     def idle_tick(self):
+                                          
+        if getattr(self, 'is_story_mode', False):
+            return
+
                                                        
         is_generating = (not self.brain_worker.task_queue.empty()) or self.is_waiting_for_voice or getattr(self,
                                                                                                            'is_typing',
@@ -510,7 +1182,9 @@ class RomashaDesktop(QMainWindow):
                                      
         if self.vision_idle_seconds == 300:
             self.browser.page().runJavaScript("window.toggleTracking(false);")
-            self.trigger_motion('BaseMotions', motion_manager.get_motion_index('wait_haji'))
+                                                                                             
+                                         
+            self.set_idle_motion(motion_manager.get_motion_index('wait_haji'))
 
                                 
             if self.vision_sleep_count == 0:
@@ -554,7 +1228,7 @@ class RomashaDesktop(QMainWindow):
             sys_prompt = f"[系统机制：他离开已经有 {minutes} 分钟了，你的视线早已从他原本所在的位置移开，不再看他。此时你可以选择让情绪渐渐平复（切换回talk），或者继续沉浸在自己的世界里小声嘀咕、发呆。请给出一小段心声或自言自语。注意：维持独处状态，不要对他搭话。]"
 
                                  
-        self.current_context_html = f"<span style='color:#ccc;'><i>(漫长的安静中，Romasha 似乎在想些什么...)</i></span><br>"
+        self.current_context_html = f"<span style='color:#ccc; font-size: var(--sub-font-size);'><i>(漫长的安静中，Romasha 似乎在想些什么...)</i></span><br>"
         bubble_html = self.current_context_html + "<span style='color:#888; font-size: var(--sub-font-size);'><i>(独处思考中...)</i></span>"
         safe_html = bubble_html.replace("'", "\\'")
         self.browser.page().runJavaScript(f"window.showBubble('{safe_html}');")
@@ -562,12 +1236,16 @@ class RomashaDesktop(QMainWindow):
         self.start_new_thought(sys_prompt)
 
     def resolve_static_mood(self):
+                                          
+        if getattr(self, 'is_story_mode', False):
+            return
+
                                              
         if self.vision_idle_seconds < 300:
                                             
             sys_prompt = "[系统机制：你刚才已经维持静止发呆或小声嘀咕 15 秒了。请根据你此刻的情绪，决定切换回正常的动态常态动作（如 mood_talk, mood_talk_alc 等）。你可以小声嘟囔一句话、说一两句心声，也可以什么都不说只输出动作标签。]"
 
-            self.current_context_html = f"<span style='color:#ccc;'><i>(短暂的定格后，她似乎有了动作...)</i></span><br>"
+            self.current_context_html = f"<span style='color:#ccc; font-size: var(--sub-font-size);'><i>(短暂的定格后，她似乎有了动作...)</i></span><br>"
             bubble_html = self.current_context_html + "<span style='color:#888; font-size: var(--sub-font-size);'><i>(调整状态...)</i></span>"
             safe_html = bubble_html.replace("'", "\\'")
             self.browser.page().runJavaScript(f"window.showBubble('{safe_html}');")
@@ -577,7 +1255,9 @@ class RomashaDesktop(QMainWindow):
     def revert_to_idle_motion(self):
         self.set_parameter('ParamCheek', 0.0)
         self.set_parameter('angry', 0.0)
-        self.trigger_motion('BaseMotions', self.current_idle_motion)
+                                                                     
+                         
+        self.set_idle_motion(self.current_idle_motion)
 
     def check_routine_outfit(self):
         now = datetime.datetime.now()
@@ -607,7 +1287,7 @@ class RomashaDesktop(QMainWindow):
             if outfit_manager._current_outfit not in ["sleepwear", "towel"]:
                 if current_intimacy >= 60 and random.random() < 0.35:
                     target_outfit = "towel"
-                    print("\n🛁 [时光流转]: 夜深了，Romasha似乎去洗了个澡...")
+                                                               
                 else:
                     target_outfit = "sleepwear"
             else:
@@ -630,6 +1310,15 @@ class RomashaDesktop(QMainWindow):
         if new_time_period != self.current_time_period:
             self.current_time_period = new_time_period
 
+                                              
+            if getattr(self, 'manual_outfit_lock', False):
+                if new_time_period == "day":
+                                                
+                    self.manual_outfit_lock = False
+                else:
+                                                  
+                    return
+
                                
             if target_outfit and target_outfit != outfit_manager._current_outfit:
                 if target_outfit == "towel":
@@ -640,7 +1329,7 @@ class RomashaDesktop(QMainWindow):
                     print(f"\n👗 [观察]: 留意到时间的推移，Romasha默默换了一身适合现在的衣服。")
 
                                
-            bubble_html = "<span style='color:#ccc;'><i>(一阵轻微的窸窣声后，她换好了一身衣服...)</i></span><br>"
+            bubble_html = "<span style='color:#ccc; font-size: var(--sub-font-size);'><i>(一阵轻微的窸窣声后，她换好了一身衣服...)</i></span><br>"
             self.browser.page().runJavaScript(f"window.showBubble(\"{bubble_html}\");")
 
                                                      
@@ -685,6 +1374,20 @@ class RomashaDesktop(QMainWindow):
 
             except Exception as e:
                 print(f"状态恢复异常: {e}")
+
+                                     
+            if llm_brain.config.get("is_first_encounter", True):
+                intro_text = "故事刚刚开始：她刚刚击败龙人少女，又遭遇了迪亚德的羞辱与监控，正一个人在房间里心力交瘁、极度迷茫……(试着对她搭话来开启命运的齿轮吧)"
+
+                                         
+                def show_delayed_intro():
+                    print(f"\n🌟 [命运指引]: {intro_text}")
+                                             
+                    bubble_html = f"<span style='color:#6031e2; font-weight:bold; font-size: var(--sub-font-size);'>🌟 {intro_text}</span>"
+                    self.show_system_notification(bubble_html, 10000)
+
+                                                           
+                QTimer.singleShot(2000, show_delayed_intro)
 
                                                
             self.mouse_timer.start(50)
@@ -749,6 +1452,22 @@ class RomashaDesktop(QMainWindow):
                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No
                 )
                 if reply == QMessageBox.Yes:
+                                                           
+                    self.brain_worker.is_cancelled = True
+                    with self.brain_worker.task_queue.mutex:
+                        self.brain_worker.task_queue.queue.clear()
+
+                                            
+                    self.tts_worker.is_cancelled = True
+
+                    with self.tts_worker.task_queue.mutex:
+                        self.tts_worker.task_queue.queue.clear()
+
+                    self.is_waiting_for_voice = False
+                    self.browser.page().runJavaScript(
+                        "if(typeof window.stopRomashaVoice === 'function') window.stopRomashaVoice();")
+                    self.pending_tags.clear()
+
                                    
                     self.brain_worker.task_queue.put(("/SYSTEM_RESET_MEMORY", ""))
 
@@ -756,8 +1475,13 @@ class RomashaDesktop(QMainWindow):
                     self.current_context_html = ""
                     self.current_display_text = ""
                     self.target_display_text = ""
+                    self.accumulated_text = ""            
 
                     self.show_system_notification("<span style='color:#888; font-size: var(--sub-font-size);'><i>(记忆已被重置，迎来了崭新的初见...)</i></span>", 3000)
+                                               
+                    self.story_window.name_btn.setText("👤 当前玩家: 未命名")
+                    self.manual_outfit_lock = False             
+
 
                                                                 
                                           
@@ -770,13 +1494,56 @@ class RomashaDesktop(QMainWindow):
                     idx = motion_manager.get_motion_index('talk')
                     if idx is not None:
                         self.current_idle_motion = idx
-                        self.trigger_motion('BaseMotions', idx)
+                                                                
+                                                                
+                                                            
+                        self.set_idle_motion(idx)
 
                                                        
                                                             
                     llm_brain.config["intimacy"] = 0
                     self.apply_initial_state()
 
+                return
+
+            if user_text.startswith('/auto '):
+                                    
+                player_name = llm_brain.config.get("player_name", "")
+                if not player_name:
+                    dialog = NameEditDialog("", self)
+                    if dialog.exec_() == QDialog.Accepted and dialog.get_name():
+                        name = dialog.get_name()
+                        llm_brain.config["player_name"] = name
+                        llm_brain.save_config()
+                        self.story_window.name_btn.setText(f"👤 当前玩家: {name}")
+                    else:
+                        self.show_system_notification("<span style='color:#e74c3c; font-size: var(--sub-font-size);'><i>(取消了推演...)</i></span>", 1500)
+                        return
+
+                level = user_text.split(' ')[1].strip()
+                if level in ["0", "1", "2", "3"]:
+                    self.is_story_mode = True             
+                    self.story_window.level_combo.setCurrentIndex(int(level))                     
+                    self.story_level = level
+                                            
+                    llm_brain.chat_history = [msg for msg in llm_brain.chat_history if
+                                              not msg.get("content", "").startswith("[系统机制")]
+                    self.show_system_notification(
+                        f"<span style='color:#6031e2; font-size: var(--sub-font-size);'><i>(已切入世界线推演模式，参与度: {level}...)</i></span>",
+                        3000)
+
+                                                       
+                    self.start_new_thought(f"/STORY_TICK_{level}_")
+                return
+
+            if user_text.startswith('/choice ') and getattr(self, 'is_story_mode', False):
+                choice_text = user_text.replace('/choice ', '').strip()
+                                           
+                llm_brain.chat_history = [msg for msg in llm_brain.chat_history if
+                                          not msg.get("content", "").startswith("[系统机制")]
+                                    
+                current_level = str(self.story_window.level_combo.currentIndex())
+                self.start_new_thought(f"/STORY_TICK_{current_level}_{choice_text}")
                 return
 
             if user_text.startswith('/track '):
@@ -870,6 +1637,24 @@ class RomashaDesktop(QMainWindow):
                     pass
                 return
 
+                                     
+            if user_text.startswith('/chapter '):
+                try:
+                    chap_val = int(user_text.split(' ')[1].strip())
+                    if chap_val >= 1:
+                        llm_brain.config["current_chapter"] = chap_val
+                        llm_brain.save_config()
+
+                                 
+                        print(f"\n📖 [命运流转]: 世界的齿轮已拨动，当前推演时间线跃迁至：第 {chap_val} 章。")
+
+                                
+                        bubble_html = f"<span style='color:#6031e2; font-size: var(--sub-font-size);'><i>(时间的刻度跳动了，你们来到了新的阶段：第 {chap_val} 章...)</i></span>"
+                        self.show_system_notification(bubble_html, 2000)
+                except Exception:
+                    print("⚠️ 指令错误，正确格式为: /chapter 2")
+                return
+
                                     
             if user_text.startswith('/ja '):
                 val = user_text.split(' ')[1].strip()
@@ -892,11 +1677,23 @@ class RomashaDesktop(QMainWindow):
 
                                      
                        
-            self.current_context_html = f"<span style='color:#48a1fa;'>你: {user_text}</span><br>"
+            self.current_context_html = f"<span style='color:#48a1fa; font-size: var(--main-font-size);'>你: {user_text}</span><br>"
+            self.last_text_finish_time = datetime.datetime.now()                    
             bubble_html = self.current_context_html + "<span style='color:#888; font-size: var(--sub-font-size);'><i>(她倾听着你的话语...)</i></span>"
             safe_html = bubble_html.replace("'", "\\'")
                           
             self.browser.page().runJavaScript(f"window.showBubble('{safe_html}', true);")
+
+                                         
+                                                                 
+                               
+                                                               
+                                        
+
+                                
+                                                                                                                                                                                                                 
+                  
+                                           
 
                             
             self.start_new_thought(user_text)
@@ -921,7 +1718,7 @@ class RomashaDesktop(QMainWindow):
             action_text = touch_prompts.get(part, "*你触碰了她*")
 
                                          
-            self.current_context_html = f"<span style='color:#fd92a1;'>{action_text}</span><br>"
+            self.current_context_html = f"<span style='color:#fd92a1; font-size: var(--main-font-size);'>{action_text}</span><br>"
             bubble_html = self.current_context_html + "<span style='color:#888; font-size: var(--sub-font-size);'><i>(感受中...)</i></span>"
             safe_html = bubble_html.replace("'", "\\'")
                           
@@ -934,8 +1731,19 @@ class RomashaDesktop(QMainWindow):
                                  
         self.static_mood_timer.stop()
         self.speech_end_timer.stop()                               
+
                               
-        if prompt_text.startswith("[系统机制"):
+        if prompt_text.startswith("/STORY_TICK_"):
+                        
+            parts = prompt_text.split("_", 3)
+            level = parts[2]
+            choice_text = parts[3] if len(parts) > 3 and parts[3] else "开启世界线推演"
+            print(
+                f"\n[{datetime.datetime.now().strftime('%H:%M:%S')}] 📖 [命运编织]: 世界线正在向新的分歧点推演 (参与度: {level})...")
+                                        
+            self.story_window.prepare_new_chapter(f"▶ 抉择: {choice_text} (参与度: {level})")
+                              
+        elif prompt_text.startswith("[系统机制"):
             print(f"\n[{datetime.datetime.now().strftime('%H:%M:%S')}] 🍃 [时光流逝]: {prompt_text[6:19]}...")
         else:
             print(f"\n[{datetime.datetime.now().strftime('%H:%M:%S')}] 👤 你: {prompt_text}")
@@ -958,14 +1766,26 @@ class RomashaDesktop(QMainWindow):
                              
         self.browser.page().runJavaScript(
             "if(typeof window.stopRomashaVoice === 'function') window.stopRomashaVoice();")
+
+                                     
+        self.tts_worker.is_cancelled = True
+        with self.tts_worker.task_queue.mutex:
+            self.tts_worker.task_queue.queue.clear()
+                                                       
+
         self.brain_worker.interrupt_and_submit(prompt_text, interrupted_text)
 
     def recover_taol_fall(self):
+                               
+        if getattr(self, 'is_story_mode', False):
+            return
+
                                       
         sys_prompt = "[系统机制：距离刚才浴巾意外滑落已经过去了整整10秒。你现在急忙蹲下重新捡起并紧紧裹好了浴巾。请必须输出 [wear_towel] 标签，并伴随极其娇羞、甚至带有哭腔或羞愤的动作（如 [mood_talk_ero]）与慌乱的话语/心声。]"
 
                       
-        self.current_context_html = "<span style='color:#fd92a1;'><i>(短暂的慌乱后，她急急忙忙重新裹好了浴巾...)</i></span><br>"
+                                       
+        self.current_context_html = "<span style='color:#fd92a1; font-size: var(--main-font-size);'><i>(短暂的慌乱后，她急急忙忙重新裹好了浴巾...)</i></span><br>"
         bubble_html = self.current_context_html + "<span style='color:#888; font-size: var(--sub-font-size);'><i>(满脸通红手忙脚乱中...)</i></span>"
         safe_html = bubble_html.replace("'", "\\'")
         self.browser.page().runJavaScript(f"window.showBubble('{safe_html}');")
@@ -974,30 +1794,142 @@ class RomashaDesktop(QMainWindow):
         self.start_new_thought(sys_prompt)
 
     def on_task_finished(self):
-                                        
         if self.accumulated_text.strip():
-            print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] 🌸 Romasha: {self.accumulated_text}")
-                                      
-            if self.is_waiting_for_voice:
+                                                        
+                                    
+                                                        
+            if getattr(self, 'is_story_mode', False):
+                print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] 🌸 剧情推演结束，处理分支中...")
+                full_text = self.accumulated_text
+
+                                                                        
+                                                                            
                                              
-                self.tts_worker.task_queue.put(self.accumulated_text)
-            else:
-                                     
-                self.target_display_text = self.final_clean_text
-                self.flush_pending_tags()
+                options_match = re.search(r'[<＜]\s*options\s*[>＞](.*?)([<＜]/\s*options\s*[>＞]|$)', full_text,
+                                          flags=re.DOTALL | re.IGNORECASE)
+                self.pending_story_options = []
+                options_raw = ""
+                fallback_match = None
+
+                if options_match:
+                    options_raw = options_match.group(1).strip()
+                else:
+                                                                        
+                    fallback_match = re.search(r'(1\.\s*.*)$', full_text, re.DOTALL)
+                    if fallback_match:
+                        options_raw = fallback_match.group(1).strip()
+                        options_raw = re.sub(r'[<＜]/?\s*options\s*[>＞]?', '', options_raw, flags=re.IGNORECASE).strip()
+
+                if options_raw:
+                                                   
+                                                        
+                                                         
+                    if re.search(r'\d+\.', options_raw):
+                        opts = re.split(r'\d+\.\s*', options_raw)
+                    elif re.search(r'[-*]\s+', options_raw):
+                        opts = re.split(r'[-*]\s+', options_raw)
+                    else:
+                        opts = options_raw.split('\n')
+
+                    self.pending_story_options = [opt.strip() for opt in opts if opt.strip()]
+
+                                           
+                print(
+                    f"🎯 [系统诊断]: 成功提取到 {len(self.pending_story_options)} 个选项 -> {self.pending_story_options}")
+
+                                              
+                display_text = re.sub(r'[<＜]\s*options\s*[>＞].*?([<＜]/\s*options\s*[>＞]|$)', '', full_text,
+                                      flags=re.DOTALL | re.IGNORECASE)
+                                                            
+                if not options_match and fallback_match:
+                    display_text = display_text.replace(fallback_match.group(1), "").strip()
+
+                display_text = re.sub(r'\[(act_|mood_|wear_|hair_).*?\]', '', display_text)
+
+                                
+                                          
+                                                        
+                say_matches = re.findall(r'\[say:\s*"(.*?)"\]', full_text, re.DOTALL)
+                tts_text = "。".join(say_matches)
+
+                if tts_text:
+                            
+                    clean_tts_print = re.sub(r'^.*?<\|endofprompt\|>', '', tts_text)
+                                                               
+                    clean_tts_print = re.sub(r'\[.*?\]', '', clean_tts_print).strip()
+                    print(f"\n🗣️ [剧情高光台词]: {clean_tts_print}")
+
+                                                               
+                    bubble_html = f"<span style='color:#fd92a1; font-weight:bold; font-size: var(--main-font-size);'>「{clean_tts_print}」</span><br>"
+                                                                                            
+                    safe_html = bubble_html.replace("'", "\\'").replace("\n", "<br>")
+                    self.browser.page().runJavaScript(f"window.showBubble('{safe_html}', true);")
+
+                                                    
+                display_text = re.sub(r'\[say:\s*"[^"]*?<\|endofprompt\|>(.*?)"\]', r'“\1”', display_text,
+                                      flags=re.DOTALL)
+                display_text = re.sub(r'\[say:\s*"(.*?)"\]', r'“\1”', display_text, flags=re.DOTALL)
+                                             
+                display_text = re.sub(r'\[.*?\]', '', display_text).strip()
+
+                                    
+                                                        
+                                                                                             
+                self.story_window.update_chapter_text(display_text)
+
+                novel_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "world_data", "novel_log.txt")
+                os.makedirs(os.path.dirname(novel_path), exist_ok=True)
+                with open(novel_path, "a", encoding="utf-8") as f:
+                    f.write(f"\n\n--- 【记录时间: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}】 ---\n")
+                                  
+                    f.write(self.story_window.target_text)
+
+                         
+                                  
+                if self.is_waiting_for_voice:
+                    if tts_text:
+                        self.tts_worker.task_queue.put(tts_text)
+                    else:
+                        self.is_waiting_for_voice = False
+                        self.speech_end_timer.start(2000)
+                                                
+                else:
+                                                  
+                                             
+                                           
+                    duration_ms = 2000
+                    self.speech_end_timer.start(duration_ms)
 
                                                         
-                duration_ms = max(4000, len(self.final_clean_text) * 250)
-                                                                        
-                                          
-                self.speech_end_timer.start(duration_ms)
+                                  
+                                                        
+            else:
+                                                
+                if self.accumulated_text.strip():
+                    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] 🌸 Romasha: {self.accumulated_text}")
+                                              
+                    if self.is_waiting_for_voice:
+                                                     
+                        self.tts_worker.task_queue.put(self.accumulated_text)
+                    else:
+                                             
+                        self.target_display_text = self.final_clean_text
+                        self.flush_pending_tags()
 
+                                                                
+                        duration_ms = max(4000, len(self.final_clean_text) * 250)
+                                                                                
+                                                  
+                        self.speech_end_timer.start(duration_ms)
+
+                           
         self.accumulated_text = ""
 
                                               
     def handle_stream_chunk(self, chunk):
         self.accumulated_text += chunk
 
+                  
         tags = re.findall(r'\[(.*?)\]', self.accumulated_text)
         for tag in tags:
             tag_lower = tag.lower()
@@ -1006,27 +1938,76 @@ class RomashaDesktop(QMainWindow):
                                                      
                 if tag_lower.startswith('intimacy_'):
                     self.execute_tag(tag_lower)
+                elif tag_lower.startswith('set_name_'):                  
+                    self.execute_tag(tag)                                
+                                   
+                elif tag_lower.startswith('move_to_'):
+                    self.execute_tag(tag)               
+                                         
+                elif tag_lower.startswith('sys_chapter_up'):
+                    self.execute_tag(tag_lower)
                                                       
                                                             
                 elif tag_lower.startswith(('act_', 'mood_', 'wear_', 'hair_')):
-                    self.pending_tags.append(tag_lower)                       
+                                                               
+                                                        
+                    if getattr(self, 'is_story_mode', False):
+                        self.execute_tag(tag_lower)
+                    else:
+                        self.pending_tags.append(tag_lower)                       
+
+                                                    
+                                  
+                                                    
+                     
+        clean_text = re.sub(r'<options>.*?(</options>|$)', '', self.accumulated_text, flags=re.DOTALL)
+
+                                        
+        voice_tags = r'breath|quick_breath|laughter|cough|clucking|accent|noise|hissing|sigh|vocalized-noise|lipsmack|mn'
+        regex_pattern = fr'\[(act_|mood_|wear_|hair_|intimacy_|set_name_|move_to_|sys_chapter_up|{voice_tags}).*?\]'
+        clean_text = re.sub(regex_pattern, '', clean_text, flags=re.IGNORECASE)
+
+                                                     
+        clean_text = re.sub(r'\[say:\s*"[^"]*?<\|endofprompt\|>(.*?)"\]', r'“\1”', clean_text)
+        clean_text = re.sub(r'\[say:\s*"(.*?)"\]', r'“\1”', clean_text)
+
+                                             
+        clean_text = re.sub(r'^.*?<\|endofprompt\|>', '', clean_text)
+
+                             
+        final_text = re.sub(r'\[[^\]]*$', '', clean_text).strip()
 
                                   
                                                
-        clean_text = re.sub(r'\[.*?\]', '', self.accumulated_text)
+                                                                   
                                                            
                                                                     
-        clean_text = re.sub(r'^.*?<\|endofprompt\|>', '', clean_text)
-        self.final_clean_text = re.sub(r'\[[^\]]*$', '', clean_text).strip()
+                                                                      
+                                                                             
 
-                                              
-        if self.is_waiting_for_voice:
-                     
-            bubble_html = self.current_context_html + "<span style='color:#888; font-size: var(--sub-font-size);'><i>(微启双唇，正在酝酿要说的话...)</i></span>"
-            safe_html = bubble_html.replace("'", "\\'")
-            self.browser.page().runJavaScript(f"window.showBubble('{safe_html}', true);")
+                                                    
+                                
+                                                    
+        if getattr(self, 'is_story_mode', False):
+                                
+            self.story_window.update_streaming_text(final_text)
+
+                              
+            bubble_html = "<span style='color:#6031e2; font-size: var(--sub-font-size);'><i>(正在进行世界线深度推演，请在日志面板查看...)</i></span>"
+            self.browser.page().runJavaScript(f"window.showBubble(\"{bubble_html}\", true);")
+
         else:
-            self.target_display_text = self.final_clean_text
+                             
+            self.final_clean_text = final_text
+
+                                                  
+            if self.is_waiting_for_voice:
+                         
+                bubble_html = self.current_context_html + "<span style='color:#888; font-size: var(--sub-font-size);'><i>(微启双唇，正在酝酿要说的话...)</i></span>"
+                safe_html = bubble_html.replace("'", "\\'")
+                self.browser.page().runJavaScript(f"window.showBubble('{safe_html}', true);")
+            else:
+                self.target_display_text = self.final_clean_text
 
                                   
     def typewriter_tick(self):
@@ -1059,6 +2040,7 @@ class RomashaDesktop(QMainWindow):
                                       
             if getattr(self, 'is_typing', False):
                 self.is_typing = False
+                self.last_text_finish_time = datetime.datetime.now()
                 safe_text = self.current_display_text.replace("\\", "\\\\").replace("\n", "<br>")
                 final_html = self.current_context_html + safe_text
                 safe_html = final_html.replace("'", "\\'")
@@ -1067,6 +2049,57 @@ class RomashaDesktop(QMainWindow):
 
                                  
     def execute_tag(self, tag):
+                        
+        if tag.lower().startswith('set_name_'):
+            new_name = tag[9:].strip()                       
+            if new_name:
+                llm_brain.config["player_name"] = new_name
+                llm_brain.save_config()
+                print(f"\n📝 [羁绊铭记]: 已将你的称呼更新为：{new_name}")
+
+                                     
+                bubble_html = f"<span style='color:#6031e2; font-size: var(--sub-font-size);'><i>(她在心里默默记下了你的名字：{new_name})</i></span><br>"
+                self.current_context_html += bubble_html
+            return
+
+                                 
+        if tag.lower().startswith('move_to_'):
+            new_loc = tag[8:].strip()                      
+            if new_loc:
+                llm_brain.config["current_location"] = new_loc
+                llm_brain.save_config()
+                print(f"\n🚶‍♀️ [空间转移]: 伴随着脚步声，Romasha 前往了【{new_loc}】。")
+
+                                     
+                bubble_html = f"<span style='color:#6031e2; font-size: var(--sub-font-size);'><i>(她改变了位置，现在来到了：{new_loc}...)</i></span><br>"
+                self.current_context_html += bubble_html
+
+                                     
+                                    
+                sys_bubble_html = f"<span style='color:#3498db; font-weight:bold; font-size: var(--main-font-size);'>🚶‍♀️ 场景转移：前往【{new_loc}】...</span>"
+                self.show_system_notification(sys_bubble_html, 4000)
+            return
+
+                                 
+        if tag.lower().startswith('sys_chapter_up'):
+            current_chap = llm_brain.config.get("current_chapter", 1)
+                           
+            if current_chap < 5:
+                next_chap = current_chap + 1
+                llm_brain.config["current_chapter"] = next_chap
+                llm_brain.save_config()
+
+                print(f"\n🌌 [命运回响]:剧本弧光完成，命运齿轮转动，已自动推进至【第 {next_chap} 章】的推演节点。")
+
+                                             
+                bubble_html = f"<span style='color:#6031e2; font-size: var(--sub-font-size);'><i>(命运的篇章已翻过，进入：第 {next_chap} 章...)</i></span><br>"
+                self.current_context_html += bubble_html
+
+                                     
+                sys_bubble_html = f"<span style='color:#6031e2; font-weight:bold; font-size: var(--main-font-size);'> 🌌 命运的齿轮转动，已自动进入第 {next_chap} 阶段...</span>"
+                self.show_system_notification(sys_bubble_html, 4000)
+            return
+
                           
         if tag.startswith('intimacy_'):
             try:
@@ -1084,7 +2117,7 @@ class RomashaDesktop(QMainWindow):
                 symbol = "+" if change_val >= 0 else ""
                 print(f"💖 [关系动态]: 亲密度 {symbol}{change_val} (当前: {new_int}/100)")
 
-                color = "#ffb6c1" if change_val >= 0 else "#a8d8ea"
+                color = "#ffb6c1" if change_val >= 0 else "#6031e2"
                                                                  
                                             
                 intimacy_html = f"<span style='color:{color}; font-size: var(--sub-font-size);'><i>[亲密度 {symbol}{change_val}]</i></span><br>"
@@ -1109,6 +2142,9 @@ class RomashaDesktop(QMainWindow):
                 params = outfit_manager.get_outfit_params(outfit_name)
                 for param_id, val in params.items():
                     self.set_parameter(param_id, val)
+
+                                                           
+                    self.manual_outfit_lock = True
             except Exception as e:
                 pass
 
@@ -1118,11 +2154,18 @@ class RomashaDesktop(QMainWindow):
                                                    
                                                     
                                        
+
+                               
+            if getattr(self, 'is_story_mode', False):
+                print(f"🎬 [物理引擎]: 罗玛莎情绪切换 -> {mood_name}")
+
             try:
                 idx = motion_manager.get_motion_index(mood_name)
                 if idx is not None:
                     self.current_idle_motion = idx
-                    self.trigger_motion('BaseMotions', idx)
+                                                            
+                                                         
+                    self.set_idle_motion(idx)
                                          
                     if mood_name in ['neutral', 'wait', 'wait_haji']:
                         self.is_current_mood_static = True
@@ -1135,6 +2178,11 @@ class RomashaDesktop(QMainWindow):
 
         elif tag.startswith('act_'):
             action_name = tag.split('_', 1)[1]
+
+                               
+            if getattr(self, 'is_story_mode', False):
+                print(f"🎬 [物理引擎]: 罗玛莎触发瞬间动作 -> {action_name}")
+
                            
             if action_name == 'taol_fall':
                 print("\n💦 [突发状况]: 浴巾好像松开了！她慌乱地试图遮掩...")
@@ -1148,31 +2196,31 @@ class RomashaDesktop(QMainWindow):
                 pass
 
     def flush_pending_tags(self):
-        """一次性释放所有积攒的动作标签（在声音响起的瞬间调用）"""
         for tag in self.pending_tags:
             self.execute_tag(tag)
         self.pending_tags.clear()
-
-                                    
-                                          
-                              
-                                                           
                                                
 
     def on_speech_finished(self):
-        """精准回调：音频彻底播放结束（或字幕打完）时触发"""
-                         
         self.revert_to_idle_motion()
 
-                                    
-                                      
         if getattr(self, 'is_current_mood_static', False):
                                                        
             delay_ms = 5000 if llm_brain.config.get("voice_enabled", True) else 8000
             self.static_mood_timer.start(delay_ms)
 
+                                            
+        if getattr(self, 'is_story_mode', False) and hasattr(self,
+                                                                 'pending_story_options') and self.pending_story_options:
+            self.story_window.show_options(self.pending_story_options)
+            self.pending_story_options = []
+
     def trigger_motion(self, group, index):
         self.browser.page().runJavaScript(f"window.playRomashaMotion('{group}', {index});")
+
+                            
+    def set_idle_motion(self, index):
+        self.browser.page().runJavaScript(f"window.setRomashaIdleMotion({index});")
 
     def set_parameter(self, param_id, value):
         self.browser.page().runJavaScript(f"window.setRomashaParam('{param_id}', {value});")
@@ -1180,6 +2228,18 @@ class RomashaDesktop(QMainWindow):
     def closeEvent(self, event):
         self.brain_worker.running = False
         self.brain_worker.wait()
+
+                                            
+        self.motion_revert_timer.stop()
+        self.typewriter_timer.stop()
+        self.notification_timer.stop()
+        self.static_mood_timer.stop()
+        self.taol_recover_timer.stop()
+        self.auto_save_timer.stop()
+        self.speech_end_timer.stop()
+        self.idle_timer.stop()
+        self.time_check_timer.stop()
+        self.mouse_timer.stop()
 
                                                     
         llm_brain.save_config()
@@ -1220,9 +2280,21 @@ class RomashaDesktop(QMainWindow):
             duration_ms = max(4000, len(self.final_clean_text) * 250)
             self.speech_end_timer.start(duration_ms)
 
-                                                 
-        self.target_display_text = self.final_clean_text
-
+                                                    
+                               
+                                                    
+        if getattr(self, 'is_story_mode', False):
+                                        
+                                                      
+            unlock_js = """
+                if(window.bubbleTimeout) clearTimeout(window.bubbleTimeout); 
+                window.bubbleTimeout = setTimeout(() => { document.getElementById('chat-bubble').style.opacity = 0; }, 6000);
+                """
+            self.browser.page().runJavaScript(unlock_js)
+        else:
+                                         
+                                                     
+            self.target_display_text = self.final_clean_text
 
 if __name__ == '__main__':
                             
@@ -1245,7 +2317,8 @@ if __name__ == '__main__':
     try:
                              
                                                          
-        memory_manager.retrieve_relevant_memories("初次相遇的预热")
+        current_int = llm_brain.config.get("intimacy", 0)              
+        memory_manager.retrieve_relevant_memories("初次相遇的预热", current_int)             
         print(f"✨ [{time_tag}] 她慢慢睁开了眼睛，你看到了她的身影。")
     except Exception as e:
         print(f"⚠️ [{time_tag}] 刚醒来似乎有些头晕，但并不影响你们的相遇: {e}")

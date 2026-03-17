@@ -53,7 +53,16 @@ def get_outfit_params(outfit_name, hair_style=None):
         params_to_apply.update(OUTFITS[outfit_name])
 
                 
-    if "hearchange" not in params_to_apply:
+                                
+    if "hearchange" in params_to_apply:
+        forced_val = params_to_apply["hearchange"]
+                                                   
+        for k, v in HAIRSTYLES.items():
+            if v == forced_val:
+                _current_hair = k
+                break
+                  
+    else:
         if hair_style in HAIRSTYLES:
                       
             _current_hair = hair_style
