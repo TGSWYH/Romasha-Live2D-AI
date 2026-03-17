@@ -157,7 +157,7 @@ def stream_chat_with_romasha(user_text, interrupted_text, thread_obj):
     outfits_list_str = (
         "- [wear_uniform_tight]: 紧身制服 (日常居家/白天)\n"
         "- [wear_uniform_dress]: 连衣裙制服 (更文雅的日常)\n"
-        "- [wear_sleepwear]: 睡衣 (夜晚睡觉时穿)\n"
+        "- [wear_sleepwear]: 睡衣 (上半身不透，下半身裙子半透明，夜晚睡觉时穿)\n"
         "- [wear_swimsuit]: 泳装 (去海边或游泳池时穿)\n"
         "- [wear_ethnic_wear]: 民族风服饰 (较为暴露，可以当做特殊节日的服装)\n"
         "- [wear_ethnic_cloak]: 民族风斗篷 (防风防寒，里面穿着民族风服饰，或为了遮挡身体感到害羞时穿)\n"
