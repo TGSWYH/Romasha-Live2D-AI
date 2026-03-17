@@ -627,7 +627,7 @@ class BrainWorker(QThread):
                                             
                     llm_brain.config["player_name"] = ""
                                                
-                    llm_brain.config["current_location"] = "罗玛莎的房间"
+                    llm_brain.config["current_location"] = "罗玛莎的房间门口"
                     llm_brain.config["current_chapter"] = 1
                     llm_brain.config["is_first_encounter"] = True                          
                     llm_brain.save_config()
