@@ -7,30 +7,35 @@
     <script src="https://cdn.jsdelivr.net/npm/pixi.js@6.5.2/dist/browser/pixi.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display/dist/cubism4.min.js"></script>
     <style>
+        
         :root {
-            --main-font-size: 16px; /* 默认 size 1 */
+            --main-font-size: 16px; 
             --sub-font-size: 14px;
         }
 
         body { margin: 0; padding: 0; overflow: hidden; background-color: transparent; }
         canvas { display: block; }
 
+        
         #chat-bubble {
             position: absolute;
             background: rgba(255, 255, 255, 0.95);
             border: 3px solid #ffb6c1;
             border-radius: 15px;
+            
             padding: 0;
             box-sizing: border-box;
             box-shadow: 0px 4px 15px rgba(0,0,0,0.15);
             transition: opacity 0.3s;
             opacity: 0;
             z-index: 100;
-            transform: translate(-50%, -100%);
+            transform: translate(-50%, -100%); 
         }
 
+        
         .scroll-wrapper {
             padding: 12px 18px;
+            
             max-width: 350px;
             width: max-content;
             max-height: 150px;
@@ -38,10 +43,11 @@
             word-wrap: break-word;
             line-height: 1.5;
             font-family: 'Microsoft YaHei', sans-serif;
-            font-size: var(--main-font-size);
+            font-size: var(--main-font-size); 
             color: #333;
         }
 
+        
         .scroll-wrapper::-webkit-scrollbar { width: 6px; }
         .scroll-wrapper::-webkit-scrollbar-track { background: transparent; }
         .scroll-wrapper::-webkit-scrollbar-thumb { background: #ffb6c1; border-radius: 3px; }
@@ -57,6 +63,7 @@
             border-color: rgba(255, 255, 255, 0.95) transparent transparent transparent;
         }
 
+        
         #input-container {
             position: absolute;
             transform: translate(-50%, 0);
@@ -72,7 +79,7 @@
         #chat-input {
             background: rgba(0, 0, 0, 0.7);
             border: 1px solid rgba(255, 255, 255, 0.4);
-            border-radius: 20px;
+            border-radius: 20px; 
             padding: 10px 20px;
             color: white;
             font-family: 'Microsoft YaHei', sans-serif;
@@ -81,20 +88,39 @@
             width: 300px;
             backdrop-filter: blur(5px);
 
-            resize: none;
-            overflow-y: hidden;
+            
+            resize: none;          
+            overflow-y: hidden;    
             box-sizing: border-box;
-            min-height: 44px;
-            max-height: 120px;
-            line-height: 20px;
+            min-height: 44px;      
+            max-height: 120px;     
+            line-height: 20px;     
             display: block;
         }
         #chat-input::placeholder { color: rgba(255, 255, 255, 0.6); }
+        #light-hint {
+            position: absolute;
+            transform: translate(-50%, -100%);
+            background: rgba(255, 255, 255, 0.78);
+            color: #777;
+            border-radius: 12px;
+            padding: 6px 12px;
+            font-family: 'Microsoft YaHei', sans-serif;
+            font-size: var(--sub-font-size);
+            line-height: 1.4;
+            white-space: nowrap;
+            box-shadow: 0px 2px 8px rgba(0,0,0,0.10);
+            opacity: 0;
+            transition: opacity 0.2s;
+            pointer-events: none;
+            z-index: 110;
+        }
     </style>
 </head>
 <body oncontextmenu="return false;">
 
     <div id="chat-bubble"></div>
+    <div id="light-hint"></div>
     <div id="input-container">
         <textarea id="chat-input" placeholder="对她说点什么..." autocomplete="off" rows="1"></textarea>
     </div>
@@ -114,21 +140,27 @@
         const chatBubble = document.getElementById('chat-bubble');
         const inputContainer = document.getElementById('input-container');
         const chatInput = document.getElementById('chat-input');
+        const lightHint = document.getElementById('light-hint');
+        let lightHintTimeout = null;
 
         let trackingEnabled = true;
-        let bubbleTimeout = null;
+        window.bubbleTimeout = null;
 
-        let touchEnabled = true;
+        
+        let touchEnabled = true;      
+        let touchBusyLocked = false;  
+        let lastTouchBusyHintTime = 0; 
 
+        
         window.setBubbleSize = function(size) {
             let root = document.documentElement;
-            if (size === 0) {
+            if (size === 0) { 
                 root.style.setProperty('--main-font-size', '14px');
                 root.style.setProperty('--sub-font-size', '12px');
-            } else if (size === 1) {
+            } else if (size === 1) { 
                 root.style.setProperty('--main-font-size', '16px');
                 root.style.setProperty('--sub-font-size', '14px');
-            } else if (size === 2) {
+            } else if (size === 2) { 
                 root.style.setProperty('--main-font-size', '18px');
                 root.style.setProperty('--sub-font-size', '16px');
             }
@@ -138,57 +170,78 @@
             app.stage.addChild(model);
             window.romashaModel = model;
 
+            
             model.scale.set(0.5);
-            model.y = 200;
+            model.y = 200; 
             model.x = window.innerWidth / 2 - model.width / 2;
 
             model.autoInteract = false;
             model.interactive = true;
             model.buttonMode = true;
 
+            
             let currentMouthOpen = 0;
 
             app.ticker.add(() => {
                 let bounds = window.romashaModel.getBounds();
                 let centerX = bounds.x + bounds.width / 2;
 
+                
                 let targetBubbleY = bounds.y + 30;
                 if (targetBubbleY - chatBubble.offsetHeight < 10) targetBubbleY = chatBubble.offsetHeight + 10;
                 chatBubble.style.left = centerX + 'px';
                 chatBubble.style.top = targetBubbleY + 'px';
 
+                let hintY = targetBubbleY - chatBubble.offsetHeight - 10;
+                if (hintY < 10) hintY = 10;
+                lightHint.style.left = centerX + 'px';
+                lightHint.style.top = hintY + 'px';
+
+                
                 if (analyser && dataArray && window.romashaModel && !audioElement.paused) {
+                    
                     analyser.getByteFrequencyData(dataArray);
                     let sum = 0;
                     for(let i = 0; i < dataArray.length; i++) {
                         sum += dataArray[i];
                     }
-
+                    
                     let average = sum / dataArray.length;
 
+                    
+                    
                     let targetMouthOpen = average / 80.0;
                     if (targetMouthOpen > 1.0) targetMouthOpen = 1.0;
-                    if (targetMouthOpen < 0.05) targetMouthOpen = 0.0;
+                    if (targetMouthOpen < 0.05) targetMouthOpen = 0.0; 
 
+                    
                     currentMouthOpen = currentMouthOpen + (targetMouthOpen - currentMouthOpen) * 0.3;
 
+                    
+                    
                     window.romashaModel.internalModel.coreModel.setParameterValueById('ParamMouthOpenY', currentMouthOpen);
                 } else {
+                    
                     currentMouthOpen = currentMouthOpen + (0 - currentMouthOpen) * 0.2;
                     if (currentMouthOpen > 0.01 && window.romashaModel) {
                         window.romashaModel.internalModel.coreModel.setParameterValueById('ParamMouthOpenY', currentMouthOpen);
                     }
                 }
 
+                
+                
                 let bootOffset = bounds.height * 0.45;
                 let targetInputY = bounds.y + bounds.height + bootOffset + 15;
 
+                
                 if (targetInputY > window.innerHeight - 50) targetInputY = window.innerHeight - 50;
 
                 inputContainer.style.left = centerX + 'px';
                 inputContainer.style.top = targetInputY + 'px';
             });
 
+            
+            
             window.updateGlobalMouse = function(x, y) {
                 if (trackingEnabled && !isDragging && window.romashaModel) {
                     window.romashaModel.focus(x, y);
@@ -200,13 +253,24 @@
                 if (!state) model.internalModel.focusController.focus(0, 0);
             };
 
+            
             window.toggleTouch = function(state) {
                 touchEnabled = state;
             };
 
+            window.toggleTouchBusy = function(state) {
+                touchBusyLocked = state;
+            };
+
+            function canTouchNow() {
+                return touchEnabled && !touchBusyLocked;
+            }
+
+            
             window.applySavedState = function(scale, x, y, track, touch) {
                 if (window.romashaModel) {
                     window.romashaModel.scale.set(scale);
+                    
                     if (x === -1) {
                         window.romashaModel.x = window.innerWidth / 2 - window.romashaModel.width / 2;
                     } else {
@@ -219,14 +283,18 @@
                 }
             };
 
+            
+            
             const audioElement = document.getElementById('romasha-audio');
             let audioCtx = null;
             let analyser = null;
             let dataArray = null;
 
+            
             window.playRomashaVoice = function(audioBase64) {
                 try {
                     if (!audioCtx) {
+                        
                         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                         analyser = audioCtx.createAnalyser();
                         analyser.fftSize = 256;
@@ -238,6 +306,7 @@
 
                     audioElement.src = "data:audio/wav;base64," + audioBase64;
 
+                    
                     audioElement.onended = function() {
                         document.title = "EVENT:AUDIO_END";
                     };
@@ -250,6 +319,7 @@
                 }
             };
 
+            
             window.stopRomashaVoice = function() {
                 if (audioElement && !audioElement.paused) {
                     audioElement.pause();
@@ -257,15 +327,18 @@
                 }
             };
 
+            
             model.on('rightdown', (e) => {
                 inputContainer.classList.toggle('active');
                 if (inputContainer.classList.contains('active')) chatInput.focus();
             });
 
+            
             chatInput.addEventListener('input', function () {
-                this.style.height = '40px';
-                this.style.height = (this.scrollHeight) + 'px';
+                this.style.height = '40px'; 
+                this.style.height = (this.scrollHeight) + 'px'; 
 
+                
                 if (this.scrollHeight > 120) {
                     this.style.overflowY = 'auto';
                 } else {
@@ -273,36 +346,67 @@
                 }
             });
 
+            
             chatInput.addEventListener('keydown', function (e) {
+                
                 if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
+                    e.preventDefault(); 
                     if (this.value.trim() !== '') {
                         document.title = "CHAT:" + this.value.trim();
                         this.value = '';
                         inputContainer.classList.remove('active');
+                        
                         this.style.height = '44px';
-                        this.style.overflowY = 'hidden';
+                        this.style.overflowY = 'hidden'; 
                     }
                 }
             });
 
+            
             window.showBubble = function(text, keepAlive = false) {
+                if (window.bubbleTimeout) {
+                    clearTimeout(window.bubbleTimeout);
+                    window.bubbleTimeout = null;
+                }
+                
                 chatBubble.innerHTML = `<div class="scroll-wrapper">${text}</div>`;
                 chatBubble.style.opacity = 1;
 
+                
                 let scrollWrapper = chatBubble.querySelector('.scroll-wrapper');
                 if (scrollWrapper) {
                     scrollWrapper.scrollTop = scrollWrapper.scrollHeight;
                 }
 
+                
                 if (!keepAlive) {
-                    let displayTime = Math.max(5000, text.replace(/<[^>]+>/g, '').length * 300);
-                    bubbleTimeout = setTimeout(() => {
+                    let displayTime = Math.max(5500, text.replace(/<[^>]+>/g, '').length * 230);
+                    window.bubbleTimeout = setTimeout(() => {
                         chatBubble.style.opacity = 0;
                     }, displayTime);
                 }
             };
 
+            window.showLightHint = function(text, duration = 1200) {
+                if (lightHintTimeout) {
+                    clearTimeout(lightHintTimeout);
+                    lightHintTimeout = null;
+                }
+
+                lightHint.innerHTML = text;
+                lightHint.style.opacity = 1;
+
+                lightHintTimeout = setTimeout(() => {
+                    lightHint.style.opacity = 0;
+                    setTimeout(() => {
+                        if (lightHint.style.opacity === '0') {
+                            lightHint.innerHTML = '';
+                        }
+                    }, 220);
+                }, duration);
+            };
+
+            
             let isDragging = false;
             let downX = 0, downY = 0;
             let startModelX = 0, startModelY = 0;
@@ -323,7 +427,18 @@
                 if(!isDragging) return;
                 isDragging = false;
 
+                
                 if (!touchEnabled) return;
+
+                
+                if (touchBusyLocked) {
+                    const now = Date.now();
+                    if (now - lastTouchBusyHintTime > 800) { 
+                        lastTouchBusyHintTime = now;
+                        window.showLightHint("<i>(她还在感受你刚才的触碰...)</i>", 1200);
+                    }
+                    return;
+                }
 
                 let upTime = Date.now();
                 let dist = Math.hypot(e.screenX - downX, e.screenY - downY);
@@ -333,36 +448,43 @@
                     const relX = (startModelX - bounds.x) / bounds.width;
                     const relY = (startModelY - bounds.y) / bounds.height;
 
+                    
                     let bodyPart = "unknown";
 
+                    
                     if (relY < 0.22) {
-                        bodyPart = "head";
+                        bodyPart = "head";        
                     } else if (relY < 0.33) {
-                        bodyPart = "face";
+                        bodyPart = "face";        
                     } else if (relY < 0.53 && relY > 0.43) {
-                        bodyPart = "bust";
+                        bodyPart = "bust";        
                     } else if (relY < 0.65) {
-                        bodyPart = "belly";
+                        bodyPart = "belly";       
                     } else if (relY < 0.78) {
+                        
+                        
                         if (relX > 0.52 && relX < 0.55) {
-                            bodyPart = "hip";
+                            bodyPart = "hip";  
                         } else {
-                            bodyPart = "crotch";
+                            bodyPart = "crotch";  
                         }
                     } else {
-                        bodyPart = "leg";
+                        bodyPart = "leg";         
                     }
 
+                    
+                    
                     if (relY > 0.69 && relY < 0.78) {
-                        if (relX < 0.37) bodyPart = "hand_right";
-                        if (relX > 0.57) bodyPart = "hand_left";
+                        if (relX < 0.37) bodyPart = "hand_right"; 
+                        if (relX > 0.57) bodyPart = "hand_left";  
                     }
+                    
+                    
+                                    
+                                    
+                    
 
-                    // let debugInfo = `<span style="color:red">X轴: ${relX.toFixed(3)}</span><br>` +
-                                    // `<span style="color:blue">Y轴: ${relY.toFixed(3)}</span><br>` +
-                                    // `<span style="color:#ffb6c1; font-weight:bold;">判定部位: ${bodyPart}</span>`;
-                    // window.showBubble(debugInfo);
-
+                    
                     document.title = "TOUCH:" + bodyPart;
                 }
             });
@@ -374,13 +496,22 @@
                     downX = e.screenX;
                     downY = e.screenY;
 
+                    
                     model.x += dx;
                     model.y += dy;
 
+                    
+                    
                     document.title = "DRAG_STATE:" + model.scale.x + ":" + model.x + ":" + model.y;
                 }
             });
 
+            window.addEventListener('pointercancel', () => {
+                isDragging = false;
+            });
+
+            
+            
             document.addEventListener('wheel', (e) => {
                 if (e.target.closest('#chat-bubble')) return;
 
@@ -388,61 +519,109 @@
                 model.scale.x *= zoomFactor;
                 model.scale.y *= zoomFactor;
 
+                
+                
                 document.title = "WHEEL_STATE:" + model.scale.x + ":" + model.x + ":" + model.y;
             });
 
-            //window.playRomashaMotion = function(group, index) { model.motion(group, index, 3); };
-            let currentIdleIndex = 24;
+            
+            
+            let currentIdleIndex = 24; 
             let isActionPlaying = false;
             let idleLoopId = 0;
-            let actionId = 0;
+            let actionId = 0; 
+            let motionHoldMode = 'fixed'; 
+            let heldActionId = 0;
+            let heldActionReady = false;
 
+            function finishCurrentAction(expectedActionId) {
+                if (expectedActionId !== actionId) return;
 
+                isActionPlaying = false;
+                heldActionId = 0;
+                heldActionReady = false;
+
+                
+                if (model.internalModel && model.internalModel.coreModel) {
+                    model.internalModel.coreModel.setParameterValueById('ParamCheek', 0.0);
+                    model.internalModel.coreModel.setParameterValueById('angry', 0.0);
+                }
+
+                
+                playCurrentIdle();
+            }
+
+            window.setMotionHoldMode = function(mode) {
+                motionHoldMode = (mode === 'until_release') ? 'until_release' : 'fixed';
+            };
+
+            window.releaseRomashaMotion = function() {
+                if (heldActionReady && heldActionId === actionId) {
+                    finishCurrentAction(heldActionId);
+                }
+            };
+
+            
             window.playRomashaMotion = function(group, index) {
                 isActionPlaying = true;
-                idleLoopId++;
-                let currentActionId = ++actionId;
+                idleLoopId++; 
+                let currentActionId = ++actionId; 
 
+                
+                heldActionId = 0;
+                heldActionReady = false;
+                
                 let startTime = Date.now();
 
+                
                 if (model.internalModel && model.internalModel.motionManager) {
                     model.internalModel.motionManager.stopAllMotions();
                 }
 
                 model.motion(group, index, 3).finally(() => {
-                    if (currentActionId === actionId) {
-                        let elapsedTime = Date.now() - startTime;
-                        let waitTime = 3500 - elapsedTime;
-                        if (waitTime < 50) waitTime = 50;
-                        setTimeout(() => {
-                            if (currentActionId === actionId) {
-                                isActionPlaying = false;
-
-                                if (model.internalModel && model.internalModel.coreModel) {
-                                    model.internalModel.coreModel.setParameterValueById('ParamCheek', 0.0);
-                                    model.internalModel.coreModel.setParameterValueById('angry', 0.0);
-                                }
-
-                                playCurrentIdle();
-                            }
-                        }, waitTime);
+                    
+                    
+                    if (currentActionId !== actionId) return;
+                    
+                    let elapsedTime = Date.now() - startTime;
+                    
+                    if (motionHoldMode === 'until_release') {
+                        heldActionId = currentActionId;
+                        heldActionReady = true;
+                        return;
                     }
+                    
+                    
+                    let waitTime = 5500 - elapsedTime;
+                    if (waitTime < 50) waitTime = 50;
+                    
+                    setTimeout(() => {
+                        
+                        if (currentActionId !== actionId) return;
+                        if (motionHoldMode === 'until_release') return; 
+                        finishCurrentAction(currentActionId);
+                    }, waitTime);
                 });
             };
 
+            
             window.setRomashaIdleMotion = function(index) {
                 currentIdleIndex = index;
                 if (!isActionPlaying) {
-                    idleLoopId++;
+                    idleLoopId++; 
+                    
                     playCurrentIdle();
                 }
             };
 
+            
             function playCurrentIdle() {
                 let currentLoopId = ++idleLoopId;
+                
                 model.motion('BaseMotions', currentIdleIndex, 1).finally(() => {
-
+                    
                     if(currentLoopId === idleLoopId && !isActionPlaying) {
+                        
                         setTimeout(() => {
                             playCurrentIdle();
                         }, 50);
@@ -450,15 +629,18 @@
                 });
             }
 
+            
             setTimeout(() => { playCurrentIdle(); }, 1000);
 
 
             window.setRomashaParam = function(paramId, value) { model.internalModel.coreModel.setParameterValueById(paramId, value); };
 
+            
             window.lastMaskRects = [];
             setInterval(() => {
                 let currentRects = [];
 
+                
                 if (window.romashaModel) {
                     let bounds = window.romashaModel.getBounds();
                     let centerX = bounds.x + bounds.width / 2;
@@ -473,18 +655,30 @@
                     currentRects.push([x, y, w, h]);
                 }
 
+                
                 const isBubbleVisible = chatBubble.style.opacity > 0.05 && chatBubble.innerHTML !== "" && chatBubble.offsetWidth > 0;
                 if (isBubbleVisible) {
                     let rect = chatBubble.getBoundingClientRect();
                     currentRects.push([Math.floor(rect.x - 5), Math.floor(rect.y - 5), Math.ceil(rect.width + 10), Math.ceil(rect.height + 15)]);
                 }
 
+                
                 const isInputActive = inputContainer.classList.contains('active') && inputContainer.offsetWidth > 0;
                 if (isInputActive) {
                     let rect = inputContainer.getBoundingClientRect();
                     currentRects.push([Math.floor(rect.x - 5), Math.floor(rect.y - 5), Math.ceil(rect.width + 10), Math.ceil(rect.height + 10)]);
                 }
 
+                
+                const isHintVisible = lightHint.style.opacity > 0.05 && lightHint.innerHTML !== "" && lightHint.offsetWidth > 0;
+                if (isHintVisible) {
+                    let rect = lightHint.getBoundingClientRect();
+                    currentRects.push([Math.floor(rect.x - 4), Math.floor(rect.y - 4), Math.ceil(rect.width + 8), Math.ceil(rect.height + 8)]);
+                }
+
+                
+                
+                
                 let isDifferent = false;
                 if (currentRects.length !== window.lastMaskRects.length) {
                     isDifferent = true;
