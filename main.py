@@ -1,35 +1,42 @@
-'''
-import sys
-import os
-import datetime
 
-if getattr(sys, 'frozen', False):
-    app_base_dir = os.path.dirname(sys.executable)
-else:
-    app_base_dir = os.path.dirname(os.path.abspath(__file__))
 
-log_dir = os.path.join(app_base_dir, "logs")
-if not os.path.exists(log_dir):
-    os.makedirs(log_dir)
 
-current_time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-log_file_path = os.path.join(log_dir, f"Romasha_Log_{current_time}.txt")
 
-class StreamToLogger(object):
-    def __init__(self, filename):
-        self.log = open(filename, "a", encoding="utf-8")
 
-    def write(self, message):
-        self.log.write(message)
-        self.log.flush()
 
-    def flush(self):
-        self.log.flush()
 
-sys.stdout = StreamToLogger(log_file_path)
-sys.stderr = sys.stdout
-# =====================================================================
-'''
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 import memory_manager                               
@@ -330,6 +337,7 @@ class StoryWindow(QWidget):
         self.setStyleSheet(self.styleSheet() + scrollbar_style)
 
     def edit_player_name(self):
+
         current_name = llm_brain.config.get("player_name", "")
                        
         dialog = NameEditDialog(current_name, self)
@@ -341,6 +349,7 @@ class StoryWindow(QWidget):
                 self.name_btn.setText(f"👤 当前玩家: {new_name}")
 
     def toggle_generation(self):
+
         if self.is_generating_story:
                            
             self.typewriter_timer.stop()
@@ -376,6 +385,8 @@ class StoryWindow(QWidget):
             self.choice_made.emit("*(顺应局势，继续推进剧情)*")
 
     def prepare_new_chapter(self, prompt_desc=""):
+
+                                
         self.is_generating_story = True
         self.action_btn.setText("🛑 停止推演")
         self.action_btn.setStyleSheet("""
@@ -408,6 +419,7 @@ class StoryWindow(QWidget):
         self.typewriter_timer.start(20)              
 
     def update_streaming_text(self, text):
+
         self.target_text = text
 
     def typewriter_tick(self):
@@ -422,6 +434,7 @@ class StoryWindow(QWidget):
 
                                    
     def finalize_chapter(self, final_text, options):
+
         try:
             self.typewriter_timer.stop()
 
@@ -468,6 +481,7 @@ class StoryWindow(QWidget):
             print(f"⚠️ [UI渲染警告]: 选项渲染受阻 -> {e}")
 
     def update_chapter_text(self, final_text):
+
         try:
             self.typewriter_timer.stop()
             self.is_generating_story = False
@@ -483,6 +497,7 @@ class StoryWindow(QWidget):
             print(f"⚠️ [UI渲染警告]: 文本渲染受阻 -> {e}")
 
     def show_options(self, options):
+
         try:
             self.pending_options = options
             if self.pending_options:
@@ -541,6 +556,7 @@ class StoryWindow(QWidget):
         self.choice_made.emit(choice_text)
 
     def pause_countdown(self, text):
+
         if text.strip() and self.countdown_timer.isActive():
             self.countdown_timer.stop()
             self.status_label.setText(" 抉择中 (输入中...)")
@@ -550,6 +566,7 @@ class StoryWindow(QWidget):
                 "QProgressBar { border: none; background-color: #e9ecef; border-radius: 3px; } QProgressBar::chunk { background-color: #f39c12; }")
 
     def send_custom_choice(self):
+
         choice_text = self.custom_choice_input.text().strip()
         if choice_text:
             self.custom_choice_input.clear()            
@@ -726,7 +743,7 @@ class TTSWorker(QThread):
                                     
                                            
                                                                        
-            clean_text = re.sub(r'\[(act_|mood_|intimacy_|wear_|hair_|set_name_).*?\]', '', text)
+            clean_text = re.sub(r'\[(act_|mood_|intimacy_|wear_|hair_|set_name_|move_to_|sys_chapter_up).*?\]', '', text)
             clean_text = re.sub(r'（内心：.*?）', '', clean_text)
             clean_text = clean_text.strip()
 
@@ -919,6 +936,7 @@ class RomashaDesktop(QMainWindow):
                           
         self.is_tracking_enabled = True
         self.is_touch_enabled = True                      
+        self.touch_temp_locked = False                  
 
                                         
         self.mouse_timer = QTimer(self)
@@ -995,9 +1013,9 @@ class RomashaDesktop(QMainWindow):
                                         
 
     def show_system_notification(self, html_text, duration=1500):
-        """显示临时系统通知，并暂停当前的对话气泡"""
+
         self.is_showing_notification = True
-        safe_html = html_text.replace("'", "\\'").replace('"', '\\"')
+        safe_html = html_text.replace("\\", "\\\\").replace("'", "\\'").replace('"', '\\"')
 
                                      
         self.browser.page().runJavaScript(f"window.showBubble('{safe_html}', true);")
@@ -1014,7 +1032,7 @@ class RomashaDesktop(QMainWindow):
             2000)
 
     def handle_story_choice(self, choice_text):
-        """接收来自剧情窗口的选择"""
+
         if choice_text == "/CANCEL_GENERATION":
                                      
             self.brain_worker.is_cancelled = True
@@ -1023,6 +1041,8 @@ class RomashaDesktop(QMainWindow):
                              
             self.flush_pending_tags()
             self.is_waiting_for_voice = False
+            self.touch_temp_locked = False
+            self.refresh_touch_state()
             return
 
         if choice_text == "/EXIT_STORY_MODE":
@@ -1033,6 +1053,8 @@ class RomashaDesktop(QMainWindow):
                                            
             self.flush_pending_tags()
             self.is_waiting_for_voice = False
+            self.touch_temp_locked = False
+            self.refresh_touch_state()
 
             self.show_system_notification(
                 "<span style='color:#e74c3c; font-size: var(--sub-font-size);'><i>(命运观测终端已关闭，切回日常模式...)</i></span>",
@@ -1052,7 +1074,7 @@ class RomashaDesktop(QMainWindow):
 
 
     def restore_bubble_state(self):
-        """恢复被指令打断的对话气泡"""
+
         self.is_showing_notification = False
 
                                                     
@@ -1140,6 +1162,13 @@ class RomashaDesktop(QMainWindow):
         if self.is_tracking_enabled:
             pos = self.mapFromGlobal(QCursor.pos())
             self.browser.page().runJavaScript(f"window.updateGlobalMouse({pos.x()}, {pos.y()});")
+
+    def refresh_touch_state(self):
+
+        enabled_str = "true" if self.is_touch_enabled else "false"
+        busy_str = "true" if self.touch_temp_locked else "false"
+        self.browser.page().runJavaScript(f"window.toggleTouch({enabled_str});")
+        self.browser.page().runJavaScript(f"window.toggleTouchBusy({busy_str});")
 
     def reset_afk(self):
                                                
@@ -1367,6 +1396,7 @@ class RomashaDesktop(QMainWindow):
                                   
                 init_js = f"window.applySavedState({scale}, {x}, {y}, {track_str}, {touch_str});"
                 self.browser.page().runJavaScript(init_js)
+                self.refresh_touch_state()
 
                                   
                 bubble_size = llm_brain.config.get("bubble_size", 1)
@@ -1467,6 +1497,10 @@ class RomashaDesktop(QMainWindow):
                     self.browser.page().runJavaScript(
                         "if(typeof window.stopRomashaVoice === 'function') window.stopRomashaVoice();")
                     self.pending_tags.clear()
+                    self.touch_temp_locked = False
+                    self.refresh_touch_state()
+                    self.is_story_mode = False
+                    self.story_window.hide()
 
                                    
                     self.brain_worker.task_queue.put(("/SYSTEM_RESET_MEMORY", ""))
@@ -1573,8 +1607,9 @@ class RomashaDesktop(QMainWindow):
                 state_val = user_text.split(' ')[1]
                 state_bool = state_val != "0"
                 self.is_touch_enabled = state_bool
-                state_str = "false" if not state_bool else "true"
-                self.browser.page().runJavaScript(f"window.toggleTouch({state_str});")
+                                                                  
+                                                                                       
+                self.refresh_touch_state()
 
                                       
                 llm_brain.config["touch_enabled"] = state_bool
@@ -1702,6 +1737,9 @@ class RomashaDesktop(QMainWindow):
         if title.startswith("TOUCH:"):
             part = title.split(":")[1]
             self.reset_afk()
+                                         
+            self.touch_temp_locked = True
+            self.refresh_touch_state()
 
             touch_prompts = {
                 "head": "*你温柔地摸了摸她的头*",
@@ -1762,6 +1800,11 @@ class RomashaDesktop(QMainWindow):
         self.processed_tags.clear()
         self.pending_tags.clear()              
         self.is_waiting_for_voice = llm_brain.config.get("voice_enabled", True)
+                             
+        if self.is_waiting_for_voice:
+            self.browser.page().runJavaScript("window.setMotionHoldMode('until_release');")
+        else:
+            self.browser.page().runJavaScript("window.setMotionHoldMode('fixed');")
 
                              
         self.browser.page().runJavaScript(
@@ -1924,6 +1967,11 @@ class RomashaDesktop(QMainWindow):
 
                            
         self.accumulated_text = ""
+                                           
+        if self.touch_temp_locked:
+                                      
+            self.touch_temp_locked = False
+            self.refresh_touch_state()
 
                                               
     def handle_stream_chunk(self, chunk):
@@ -2196,14 +2244,29 @@ class RomashaDesktop(QMainWindow):
                 pass
 
     def flush_pending_tags(self):
+
         for tag in self.pending_tags:
             self.execute_tag(tag)
         self.pending_tags.clear()
+
+                                    
+                                          
+                              
+                                                           
                                                
 
     def on_speech_finished(self):
+
+                                          
+        self.browser.page().runJavaScript(
+            "if(typeof window.releaseRomashaMotion === 'function') window.releaseRomashaMotion();"
+        )
+                          
+                         
         self.revert_to_idle_motion()
 
+                                    
+                                      
         if getattr(self, 'is_current_mood_static', False):
                                                        
             delay_ms = 5000 if llm_brain.config.get("voice_enabled", True) else 8000
@@ -2226,9 +2289,6 @@ class RomashaDesktop(QMainWindow):
         self.browser.page().runJavaScript(f"window.setRomashaParam('{param_id}', {value});")
 
     def closeEvent(self, event):
-        self.brain_worker.running = False
-        self.brain_worker.wait()
-
                                             
         self.motion_revert_timer.stop()
         self.typewriter_timer.stop()
@@ -2240,6 +2300,17 @@ class RomashaDesktop(QMainWindow):
         self.idle_timer.stop()
         self.time_check_timer.stop()
         self.mouse_timer.stop()
+
+        self.brain_worker.is_cancelled = True
+        self.tts_worker.is_cancelled = True
+        with self.brain_worker.task_queue.mutex:
+            self.brain_worker.task_queue.queue.clear()
+        with self.tts_worker.task_queue.mutex:
+            self.tts_worker.task_queue.queue.clear()
+        self.brain_worker.running = False
+        self.tts_worker.running = False
+        self.brain_worker.wait()
+        self.tts_worker.wait()
 
                                                     
         llm_brain.save_config()

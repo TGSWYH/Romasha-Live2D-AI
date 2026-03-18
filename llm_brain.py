@@ -387,6 +387,9 @@ def stream_chat_with_romasha(user_text, interrupted_text, thread_obj):
 
 def update_story_summary_background(old_messages):
 
+
+
+
     def _task():
         try:
             current_summary = story_manager.get_summary()
@@ -599,6 +602,7 @@ def get_story_prompt(participation_level, last_choice, current_time, current_out
 
 
 def stream_story_with_romasha(level, user_choice_text, thread_obj):
+
     global chat_history
 
                                 
