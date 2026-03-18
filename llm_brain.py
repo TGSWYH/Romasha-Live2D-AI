@@ -30,9 +30,9 @@ CONFIG_FILE = os.path.join(app_dir, "config.json")
 def load_config():
     default_config = {
         "api_type": "openai",                               
-        "api_key": "你的API",
-        "base_url": "你的大模型接口",
-        "target_model": "你的模型名称",
+        "api_key": "sk-5vfwC57lsc452Mq0qgpJ942NwHWYElg8vD151j5AeH5gDamI",
+        "base_url": "https://api.hype3808.dev/v1",
+        "target_model": "gemini-3-flash-preview",
         "intimacy": 0,                
         "player_name": "",                            
         "current_location": "罗玛莎的房间门口",              
@@ -176,7 +176,7 @@ def stream_chat_with_romasha(user_text, interrupted_text, thread_obj):
 
                             
     current_hair_key = outfit_manager._current_hair if outfit_manager._current_hair else "loose"
-    hair_desc = "散开头发" if current_hair_key == "loose" else "盘发/丸子头"
+    hair_desc = "散发：后部是顺滑披落的长直发；前脸固定为轻薄齐刘海、贴脸侧发和一小撮微翘呆毛，头侧佩戴带深色包裹结构与蓝绿色核心模块的头戴式便携终端设备" if current_hair_key == "loose" else "丸子头：后部盘成松软圆润的丸子头；前脸固定为轻薄齐刘海、贴脸侧发和一小撮微翘呆毛，头侧佩戴带深色包裹结构与蓝绿色核心模块的头戴式便携终端设备"
 
                                                 
     is_voice_on = config.get("voice_enabled", True)
@@ -235,6 +235,14 @@ def stream_chat_with_romasha(user_text, interrupted_text, thread_obj):
     dynamic_system_prompt += f"- 你当前对我的【亲密度】：{config.get('intimacy', 0)} / 100 \n"
     dynamic_system_prompt += f"  (说明：负数代表厌恶/恐惧，0-30是陌生/戒备，30-60是朋友/信任，60-80是暧昧，80-100是极度依赖/深爱)\n"
     dynamic_system_prompt += f"⚠️ 换装与发型规则：你可以根据聊天情境（例如我要你换衣服、你要去洗澡、睡觉或庆祝特殊节日）自主输出 [wear_xxx] 或 [hair_xxx] 标签换衣服或发型。如果没有换装或换发型的行为，【绝对禁止】输出这两个标签！保持现状即可。\n\n"
+    dynamic_system_prompt += (
+        "【外貌描写硬约束】\n"
+        "当你需要描述自己的外貌时，必须严格服从外貌锚定档案："
+        "保持白皙近乎无瑕、细腻柔滑的肌肤，浅银白/白金系头发，轻薄齐刘海，贴脸侧发，头顶一小撮呆毛，明亮蓝眼，耳朵外露部分较少且轮廓纤细，纤细匀称的体态，以及优雅、高贵又可爱的整体气质。"
+        "头侧佩戴的是带深色包裹结构与蓝绿色核心模块的头戴式便携终端设备，不是普通头饰。"
+        "系统若告知当前是散发或丸子头，只允许改变后部束发状态，不得改写前脸发型结构。"
+        "除非系统明确要求，否则不要擅自详细描写衣服。\n\n"
+    )
 
                                                 
                             
@@ -275,6 +283,10 @@ def stream_chat_with_romasha(user_text, interrupted_text, thread_obj):
     messages = [{"role": "system", "content": dynamic_system_prompt}]
     messages.extend(chat_history)
     messages.append({"role": "user", "content": injected_user_text})
+                                                                            
+                                                                 
+                                                                   
+                                                           
 
     try:
         full_reply = ""
@@ -374,6 +386,7 @@ def stream_chat_with_romasha(user_text, interrupted_text, thread_obj):
 
 
 def update_story_summary_background(old_messages):
+
     def _task():
         try:
             current_summary = story_manager.get_summary()
@@ -547,6 +560,13 @@ def get_story_prompt(participation_level, last_choice, current_time, current_out
 - 她的发型是：{current_hair}
 - 对玩家亲密度：{current_intimacy}/100
 
+【外貌描写硬约束】
+当你在视觉小说中描写罗玛莎时，必须严格保持她的固定外貌：
+她拥有白皙、细腻、近乎无瑕的肌肤；极浅银白偏浅亚麻金/白金色头发；轻薄齐刘海、贴脸侧发、头顶一小撮微翘呆毛；明亮通透的蓝色眼睛；略尖的耳朵；纤细匀称、轻盈柔和的体态；以及优雅、高贵又可爱的整体气质。
+她头侧佩戴的是带深色包裹结构与蓝绿色核心模块的头戴式便携终端设备，不是普通饰品。
+如果系统当前发型状态是散发或丸子头，只改变后部头发状态，不要改写前脸结构。
+除非系统明确要求，否则不要把篇幅浪费在服装细节上，也不要编造与设定冲突的外貌。
+
 【可用物理引擎标签库】：
 - 动作库：\n{motions_list}
 - 服装库：\n{outfits_list}
@@ -591,7 +611,10 @@ def stream_story_with_romasha(level, user_choice_text, thread_obj):
 
                            
     current_hair_key = outfit_manager._current_hair if outfit_manager._current_hair else "loose"
-    current_hair = "散开头发" if current_hair_key == "loose" else "盘发/丸子头"
+    if current_hair_key == "loose":
+        current_hair = "散发：后部是顺滑披落的长直发；前脸固定为轻薄齐刘海、贴脸侧发与一小撮微翘呆毛，头侧佩戴带深色包裹结构与蓝绿色核心模块的头戴式便携终端设备"
+    else:
+        current_hair = "丸子头：后部盘成松软圆润的丸子头；前脸固定为轻薄齐刘海、贴脸侧发与一小撮微翘呆毛，头侧佩戴带深色包裹结构与蓝绿色核心模块的头戴式便携终端设备"
 
     current_intimacy = config.get('intimacy', 0)
     recent_summary = story_manager.get_summary()
@@ -640,12 +663,15 @@ def stream_story_with_romasha(level, user_choice_text, thread_obj):
     system_prompt = get_story_prompt(
         level, user_choice_text, current_time_str, current_outfit, current_hair, current_intimacy,
         motions_list_str, outfits_list_str, hairs_list_str, recent_summary, use_cosyvoice, recent_chats_text,
-        loc_lore, available_locs, memories, chapter_lore, current_chapter
+        memories, loc_lore, available_locs, chapter_lore, current_chapter
     )
 
     messages = [{"role": "system", "content": system_prompt}]
                       
                                                                                    
+                                                                         
+                                                                   
+                                                                
 
     try:
         full_reply = ""
