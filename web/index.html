@@ -129,6 +129,35 @@
     <canvas id="canvas"></canvas>
 
     <script>
+        const chatBubble = document.getElementById('chat-bubble');
+        const inputContainer = document.getElementById('input-container');
+        const chatInput = document.getElementById('chat-input');
+        const lightHint = document.getElementById('light-hint');
+        let lightHintTimeout = null;
+
+        function reportLoadError(msg) {
+            console.error(msg);
+            if (chatBubble) {
+                chatBubble.innerHTML = `<div class="scroll-wrapper" style="color:#e74c3c;">${msg}</div>`;
+                chatBubble.style.left = '50%';
+                chatBubble.style.top = '120px';
+                chatBubble.style.opacity = 1;
+            }
+            document.title = "EVENT:LOAD_ERROR:" + encodeURIComponent(msg);
+        }
+        if (typeof PIXI === 'undefined') {
+            reportLoadError("前端依赖加载失败：PIXI 未成功加载，请检查网络或 CDN。");
+            throw new Error("PIXI 未定义");
+        }
+        if (!PIXI.live2d || !PIXI.live2d.Live2DModel) {
+            reportLoadError("前端依赖加载失败：pixi-live2d-display 未成功加载，请检查网络或 CDN。");
+            throw new Error("PIXI.live2d 未定义");
+        }
+        if (typeof Live2DCubismCore === 'undefined') {
+            reportLoadError("前端依赖加载失败：Live2D Cubism Core 未成功加载，请检查网络或 CDN。");
+            throw new Error("Live2DCubismCore 未定义");
+        }
+
         const app = new PIXI.Application({
             view: document.getElementById('canvas'),
             autoStart: true,
@@ -136,12 +165,6 @@
             transparent: true,
             backgroundAlpha: 0
         });
-
-        const chatBubble = document.getElementById('chat-bubble');
-        const inputContainer = document.getElementById('input-container');
-        const chatInput = document.getElementById('chat-input');
-        const lightHint = document.getElementById('light-hint');
-        let lightHintTimeout = null;
 
         let trackingEnabled = true;
         window.bubbleTimeout = null;
@@ -702,6 +725,15 @@
             }, 100);
 
             setTimeout(() => { document.title = "EVENT:READY"; }, 800);
+        })
+        .catch(err => {
+            console.error("Live2D 模型加载失败:", err);
+            const msg = "模型加载失败：" + (err && err.message ? err.message : String(err));
+            chatBubble.innerHTML = `<div class="scroll-wrapper" style="color:#e74c3c;">${msg}</div>`;
+            chatBubble.style.left = '50%';
+            chatBubble.style.top = '120px';
+            chatBubble.style.opacity = 1;
+            document.title = "EVENT:LOAD_ERROR:" + encodeURIComponent(msg);
         });
     </script>
 </body>
