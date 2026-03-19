@@ -1253,14 +1253,14 @@ class RomashaDesktop(QMainWindow):
     def trigger_idle_thought(self, minutes):
         if minutes == 3:
                                       
-            sys_prompt = "[系统机制：他已经离开你的身边整整 3 分钟了。请根据你此时的心情，输出一小段自言自语或内心独白（使用括号表示心声）。你可以维持刚才互动时的情绪余温，也可以改变动作。注意：你现在处于独处状态，请做自己的事，绝对不要试图对他搭话。]"
+            sys_prompt = "[系统机制：对方已经安静了整整 3 分钟。注意：安静不等于离开。除非系统明确说明他已经离开、不在场或走远，否则默认他仍在附近。请根据你此时的心情，输出一小段自言自语、轻声呢喃或内心独白（使用括号表示心声）。你可以维持刚才互动时的情绪余温，也可以改变动作。如果你感觉他还在，就不要说他离开了；你可以把这段沉默理解为安静陪伴，也可以轻声试探性确认。]"
         else:
                                           
-            sys_prompt = f"[系统机制：他离开已经有 {minutes} 分钟了，你的视线早已从他原本所在的位置移开，不再看他。此时你可以选择让情绪渐渐平复（切换回talk），或者继续沉浸在自己的世界里小声嘀咕、发呆。请给出一小段心声或自言自语。注意：维持独处状态，不要对他搭话。]"
+            sys_prompt = f"[系统机制：对方已经持续安静了 {minutes} 分钟。注意：沉默不等于离开。除非系统明确说明他已经离开、不在场或走远，否则默认他仍可能在附近安静陪着你。你的视线可以自然移开，不必一直看着他。此时你可以选择让情绪渐渐平复（切换回talk），或者继续沉浸在自己的世界里小声嘀咕、发呆。请给出一小段心声、自言自语，或一句很轻的试探性确认。不要直接断言他已经离开。]"
 
                                  
         self.current_context_html = f"<span style='color:#ccc; font-size: var(--sub-font-size);'><i>(漫长的安静中，Romasha 似乎在想些什么...)</i></span><br>"
-        bubble_html = self.current_context_html + "<span style='color:#888; font-size: var(--sub-font-size);'><i>(独处思考中...)</i></span>"
+        bubble_html = self.current_context_html + "<span style='color:#888; font-size: var(--sub-font-size);'><i>(安静中...)</i></span>"
         safe_html = bubble_html.replace("'", "\\'")
         self.browser.page().runJavaScript(f"window.showBubble('{safe_html}');")
 
