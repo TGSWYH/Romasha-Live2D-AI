@@ -118,6 +118,7 @@ def _ensure_dir():
              
                                             
 def get_static_lore():
+
     _ensure_dir()
     if not os.path.exists(STATIC_LORE_FILE):
         return {}
@@ -130,6 +131,7 @@ def get_static_lore():
 
 
 def get_dynamic_lore():
+
     _ensure_dir()
     if not os.path.exists(DYNAMIC_LORE_FILE):
         return {}
@@ -142,6 +144,7 @@ def get_dynamic_lore():
 
 
 def save_dynamic_lore(data):
+
     _ensure_dir()
     with _lore_lock:                      
         try:
@@ -152,6 +155,7 @@ def save_dynamic_lore(data):
 
 
 def clear_dynamic_lore():
+
     if os.path.exists(DYNAMIC_LORE_FILE):
         try:
             os.remove(DYNAMIC_LORE_FILE)
@@ -164,6 +168,10 @@ def clear_dynamic_lore():
                      
                                             
 def scan_and_get_lore(text, current_chapter=1):
+
+
+
+
     if not text: return ""
 
     triggered_entries = []
@@ -207,6 +215,11 @@ def scan_and_get_lore(text, current_chapter=1):
                            
                                             
 def update_lorebook_background(recent_history, config):
+
+
+
+
+
     def _task():
         try:
                                       
@@ -300,6 +313,9 @@ def update_lorebook_background(recent_history, config):
 
 
 def get_filtered_lore_context(current_chapter=1):
+
+
+
     static_lore = get_static_lore()
     dynamic_lore = get_dynamic_lore()
 

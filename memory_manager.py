@@ -21,6 +21,10 @@ _default_ef = None
 _db_lock = threading.Lock()
 
 def _get_collection():
+
+
+
+
     global _client, _collection, _default_ef
     if _collection is None:
         print("💭 [思绪浮现] 过去的记忆片段正在脑海中重组...")
@@ -33,6 +37,10 @@ def _get_collection():
     return _collection
 
 def add_memory(user_text, ai_text, current_intimacy, is_story_mode=False):
+
+
+
+
     if not user_text and not is_story_mode: return
     if not ai_text: return
 
@@ -55,7 +63,7 @@ def add_memory(user_text, ai_text, current_intimacy, is_story_mode=False):
             memory_content = f"在之前的经历中，我（玩家）的抉择是：{user_text}\n随后发生的情节是：{clean_ai}"
     else:
                                   
-        memory_content = f"我曾经对Romasha说：{user_text}\nRomasha当时的回应是：{ai_text}"
+        memory_content = f"我曾经对Romasha说：{user_text}\nRomasha当时的回应是：{clean_ai}"
 
     try:
         with _db_lock:                      
@@ -70,12 +78,16 @@ def add_memory(user_text, ai_text, current_intimacy, is_story_mode=False):
         print(f"⚠️ [记忆模糊]: 这一段记忆似乎像晨雾一样消散了... ({e})")
 
 def get_intimacy_desc(intimacy_val):
+
     if intimacy_val < 30: return "陌生与戒备"
     elif intimacy_val < 60: return "朋友与信任"
     elif intimacy_val < 80: return "暧昧与在意"
     else: return "极度依赖与深爱"
 
 def retrieve_relevant_memories(current_query, current_intimacy, n_results=3):
+
+
+
     col = _get_collection()
     if col.count() == 0: return ""
     actual_n = min(n_results, col.count())

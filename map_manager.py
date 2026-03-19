@@ -121,6 +121,7 @@ class MapManager:
             print(f"⚠️ [空间感知]: 地图文件读取失败: {e}")
 
     def get_current_location_lore(self, location_name, current_chapter=1):
+
         loc = self.flat_locations.get(location_name)
         if not loc:
             return f"【未知区域 - {location_name}】：似乎不在基地的常规地图记录中。"
@@ -149,6 +150,7 @@ class MapManager:
 
 
     def get_available_locations(self, current_chapter=1):
+
         if not self.map_data:
             return "无可用地点"
 

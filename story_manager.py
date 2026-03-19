@@ -22,10 +22,12 @@ CHRONICLE_FILE = os.path.join(WORLD_DATA_DIR, "final_aligned_story_chronicle.txt
 _file_lock = threading.Lock()                  
 
 def _ensure_dir():
+
     if not os.path.exists(WORLD_DATA_DIR):
         os.makedirs(WORLD_DATA_DIR)
 
 def get_summary():
+
     _ensure_dir()
     if not os.path.exists(SUMMARY_FILE):
         return ""
@@ -37,6 +39,7 @@ def get_summary():
         return ""
 
 def save_summary(text):
+
     _ensure_dir()
     with _file_lock:          
         try:
@@ -46,6 +49,7 @@ def save_summary(text):
             print(f"⚠️ [世界法则] 保存总结失败: {e}")
 
 def append_to_summary(new_entry):
+
     _ensure_dir()
     with _file_lock:          
         try:
@@ -55,15 +59,17 @@ def append_to_summary(new_entry):
             print(f"⚠️ [世界法则] 追加日记失败: {e}")
 
 def rewrite_summary(full_text):
+
     _ensure_dir()
     with _file_lock:          
         try:
             with open(SUMMARY_FILE, "w", encoding="utf-8") as f:
                 f.write(full_text + "\n")
         except Exception as e:
-            pass
+            print(f"⚠️ [世界法则] 重写总结失败: {e}")
 
 def clear_summary():
+
     with _file_lock:                         
         if os.path.exists(SUMMARY_FILE):
             try:
@@ -73,6 +79,7 @@ def clear_summary():
                 print(f"⚠️ [世界法则] 抹除总结失败: {e}")
 
 def archive_novel_log():
+
     with _file_lock:             
         if os.path.exists(NOVEL_LOG_FILE):
             try:
@@ -89,6 +96,11 @@ def archive_novel_log():
 
 
 def get_chronicle_context(chapter_num):
+
+
+
+
+
     if not os.path.exists(CHRONICLE_FILE):
         return "⚠️ 未找到剧情纪事本文件。"
 

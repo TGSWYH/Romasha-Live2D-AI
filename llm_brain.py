@@ -30,9 +30,9 @@ CONFIG_FILE = os.path.join(app_dir, "config.json")
 def load_config():
     default_config = {
         "api_type": "openai",                               
-        "api_key": "sk-5vfwC57lsc452Mq0qgpJ942NwHWYElg8vD151j5AeH5gDamI",
-        "base_url": "https://api.hype3808.dev/v1",
-        "target_model": "gemini-3-flash-preview",
+        "api_key": "你的apikey",
+        "base_url": "你的大模型接口",
+        "target_model": "你的大模型名称",
         "intimacy": 0,                
         "player_name": "",                            
         "current_location": "罗玛莎的房间门口",              

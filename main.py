@@ -54,6 +54,8 @@ from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QM
                              QHBoxLayout, QLabel, QScrollArea, QInputDialog, QSizePolicy, QComboBox)
 from PyQt5.QtWebEngineWidgets import QWebEngineView, QWebEngineSettings
 from PyQt5.QtGui import QRegion, QCursor, QFont, QColor, QTextCursor, QIcon                   
+from urllib.parse import unquote
+
 
 import llm_brain
 import motion_manager
@@ -1427,6 +1429,16 @@ class RomashaDesktop(QMainWindow):
                             
         if title == "EVENT:AUDIO_END":
             self.on_speech_finished()
+            return
+
+                             
+        if title.startswith("EVENT:LOAD_ERROR:"):
+            err = title.split(":", 2)[2]
+            try:
+                err = unquote(err)
+            except Exception:
+                pass
+            print(f"⚠️ [模型加载失败]: {err}")
             return
 
                                   
