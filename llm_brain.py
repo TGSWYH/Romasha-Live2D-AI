@@ -30,9 +30,9 @@ CONFIG_FILE = os.path.join(app_dir, "config.json")
 def load_config():
     default_config = {
         "api_type": "openai",                               
-        "api_key": "sk-BOIfaNR9CVuERB57c",
-        "base_url": "https://api.wataruu.me/v1",
-        "target_model": "gpt-5.4",
+        "api_key": "你的api—_key",
+        "base_url": "你的大模型接口",
+        "target_model": "模型名称",
         "intimacy": 0,                
         "player_name": "",                            
         "current_location": "罗玛莎的房间门口",              
@@ -283,10 +283,10 @@ def stream_chat_with_romasha(user_text, interrupted_text, thread_obj):
     messages = [{"role": "system", "content": dynamic_system_prompt}]
     messages.extend(chat_history)
     messages.append({"role": "user", "content": injected_user_text})
-    print(f"🧠 [Prompt长度监控] system_prompt字符数: {len(dynamic_system_prompt)}")
-    print(f"🧠 [Prompt长度监控] chat_history条数: {len(chat_history)}")
-    total_chars = sum(len(m.get("content", "")) for m in messages)
-    print(f"🧠 [Prompt长度监控] 本轮总messages字符数: {total_chars}")
+    #print(f"🧠 [Prompt长度监控] system_prompt字符数: {len(dynamic_system_prompt)}")
+    #print(f"🧠 [Prompt长度监控] chat_history条数: {len(chat_history)}")
+    #total_chars = sum(len(m.get("content", "")) for m in messages)
+    #print(f"🧠 [Prompt长度监控] 本轮总messages字符数: {total_chars}")
 
     try:
         full_reply = ""
@@ -673,9 +673,9 @@ def stream_story_with_romasha(level, user_choice_text, thread_obj):
     messages = [{"role": "system", "content": system_prompt}]
                       
                                                                                    
-    print(f"📖 [StoryPrompt长度监控] system_prompt字符数: {len(system_prompt)}")
-    total_chars = sum(len(m.get("content", "")) for m in messages)
-    print(f"📖 [StoryPrompt长度监控] 本轮总messages字符数: {total_chars}")
+    #print(f"📖 [StoryPrompt长度监控] system_prompt字符数: {len(system_prompt)}")
+    #total_chars = sum(len(m.get("content", "")) for m in messages)
+    #print(f"📖 [StoryPrompt长度监控] 本轮总messages字符数: {total_chars}")
 
     try:
         full_reply = ""
