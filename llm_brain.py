@@ -30,9 +30,9 @@ CONFIG_FILE = os.path.join(app_dir, "config.json")
 def load_config():
     default_config = {
         "api_type": "openai",                               
-        "api_key": "你的api—_key",
-        "base_url": "你的大模型接口",
-        "target_model": "模型名称",
+        "api_key": "sk-BOIfaNR9CVuERB57c",
+        "base_url": "https://api.wataruu.me/v1",
+        "target_model": "gpt-5.4",
         "intimacy": 0,                
         "player_name": "",                            
         "current_location": "罗玛莎的房间门口",              
@@ -283,10 +283,10 @@ def stream_chat_with_romasha(user_text, interrupted_text, thread_obj):
     messages = [{"role": "system", "content": dynamic_system_prompt}]
     messages.extend(chat_history)
     messages.append({"role": "user", "content": injected_user_text})
-    #print(f"🧠 [Prompt长度监控] system_prompt字符数: {len(dynamic_system_prompt)}")
-    #print(f"🧠 [Prompt长度监控] chat_history条数: {len(chat_history)}")
-    #total_chars = sum(len(m.get("content", "")) for m in messages)
-    #print(f"🧠 [Prompt长度监控] 本轮总messages字符数: {total_chars}")
+    print(f"🧠 [Prompt长度监控] system_prompt字符数: {len(dynamic_system_prompt)}")
+    print(f"🧠 [Prompt长度监控] chat_history条数: {len(chat_history)}")
+    total_chars = sum(len(m.get("content", "")) for m in messages)
+    print(f"🧠 [Prompt长度监控] 本轮总messages字符数: {total_chars}")
 
     try:
         full_reply = ""
@@ -578,15 +578,17 @@ def get_story_prompt(participation_level, last_choice, current_time, current_out
 【🚨 视觉小说推演核心规则】：
 1. 篇幅与任务：请基于上述设定，续写 1500-2000 字的详细剧情。玩家参与度：{current_level_desc}。
 2. 物理动作（极其重要）：在描写罗玛莎的神态时，【必须】在句首或句中穿插 Live2D 动作标签（例如 [act_smile], [mood_talk_ero]）。没有标签前端将无法演出！
-3. 语音发音：这数千字里罗玛莎说的大部分话请用普通的「」包裹，不要发音！【整段剧情中，最多只能挑选 1 句】最核心的台词触发语音，发音格式要求：{tts_rule}
-4. 动态称呼：如果世界书或前情提要中显示你们已经确立了特殊的亲昵称呼（如老公、主人、哥哥等），请在台词中自然使用！
-5. 选项格式：必须在故事最末尾使用 `<options>` 标签提供 3 个走向选项，必须换行。
-6. 章节自动演进（极度重要）：作为推演引擎，如果你在生成这段剧情时，判定【当前阶段的核心冲突已经彻底结束】（例如：第一章的斯皮娜危机解除/成功逃亡，或打败了本阶段关键人物，或玩家彻底扭转了本阶段的死局，准备开启新篇章），请在回复的最末尾（`<options>`标签之后），单独输出隐藏指令：`[sys_chapter_up]`。系统会自动为你加载下一阶段的剧本设定。如果冲突还在继续，绝对不要输出此标签！
+3. 台词规则（极其重要）：正文中【允许并鼓励玩家说台词】。玩家不是只能做选择的旁观者；只要当前参与度不是 0，且情境合适，就应当让玩家在正文里自然开口，用普通的「」表现玩家台词。尤其在参与度 2 和 3 时，玩家应当经常说话、回应、安慰、提问、表态或与罗玛莎对话。不要把玩家写成全程沉默的空气人。
+4. 语音发音：这数千字里只有罗玛莎的台词可以触发语音。[say: "..."] 仅用于罗玛莎。罗玛莎说的大部分话请用普通的「」包裹，不要发音！【整段剧情中，最多只能挑选 1 句】最核心的罗玛莎台词触发语音，发音格式要求：{tts_rule}
+5. 动态称呼：如果世界书或前情提要中显示你们已经确立了特殊的亲昵称呼（如老公、主人、哥哥等），请在台词中自然使用！
+6. 选项格式：必须在故事最末尾使用 `<options>` 标签提供 3 个走向选项，必须换行。
+7. 章节自动演进（极度重要）：作为推演引擎，如果你在生成这段剧情时，判定【当前阶段的核心冲突已经彻底结束】（例如：第一章的斯皮娜危机解除/成功逃亡，或打败了本阶段关键人物，或玩家彻底扭转了本阶段的死局，准备开启新篇章），请在回复的最末尾（`<options>`标签之后），单独输出隐藏指令：`[sys_chapter_up]`。系统会自动为你加载下一阶段的剧本设定。如果冲突还在继续，绝对不要输出此标签！
 
-【标准输出示例】（必须模仿这种包含动作和台词的第三人称格式）：
-走廊的灯带像冷白的水。罗玛莎没有再等{player_name}的回应，[move_to_医疗室]她慢慢朝医疗室走 [act_smallgikuri]，指尖按着发烫的装置，疼得发麻。
-[mood_talk_ero]她抬起眼看着你，声音发颤：[say: "那个……请不要离开我。"] 
-接着是一阵长久的沉默……
+【标准输出示例】（必须模仿这种包含动作和双方台词的第三人称格式）：
+走廊的灯带像冷白的水。罗玛莎没有再等{player_name}的回应，[move_to_医疗室]她慢慢朝医疗室走[act_smallgikuri]，指尖按着发烫的装置，疼得发麻。
+{player_name}快步跟了上去，低声道：「我陪你过去，别一个人硬撑。」
+[mood_talk_ero]罗玛莎脚步微顿，抬起眼看向{player_name}，[say: "那个……你真的还愿意陪着我吗？"]
+她的声音轻得几乎散在空气里，却还是没有停下向前的步伐。
 
 <options>
 1. 走上前抱住她
@@ -673,9 +675,9 @@ def stream_story_with_romasha(level, user_choice_text, thread_obj):
     messages = [{"role": "system", "content": system_prompt}]
                       
                                                                                    
-    #print(f"📖 [StoryPrompt长度监控] system_prompt字符数: {len(system_prompt)}")
-    #total_chars = sum(len(m.get("content", "")) for m in messages)
-    #print(f"📖 [StoryPrompt长度监控] 本轮总messages字符数: {total_chars}")
+    print(f"📖 [StoryPrompt长度监控] system_prompt字符数: {len(system_prompt)}")
+    total_chars = sum(len(m.get("content", "")) for m in messages)
+    print(f"📖 [StoryPrompt长度监控] 本轮总messages字符数: {total_chars}")
 
     try:
         full_reply = ""

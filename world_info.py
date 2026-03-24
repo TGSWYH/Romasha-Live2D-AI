@@ -70,6 +70,9 @@ EXTRA_LORE = """
 
                            
 def get_full_lore():
+
+
+
     lore_text = "【以下是绝对真实的系统设定与背景】：\n\n"
 
                                  

@@ -48,6 +48,7 @@ import random
 import queue
 import base64
 import requests
+import time
 from PyQt5.QtCore import Qt, QUrl, QThread, pyqtSignal, QTimer, QRect
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QMessageBox,
                              QDialog, QTextBrowser, QPushButton, QProgressBar, QLineEdit,
@@ -168,7 +169,7 @@ class StoryWindow(QWidget):
                     QPushButton:hover { background: #7f8c8d; }
                 """)
                                                                 
-        self.exit_btn.clicked.connect(self.close)
+        self.exit_btn.clicked.connect(self.request_exit_story)
 
                        
         self.level_combo = QComboBox()
@@ -575,28 +576,120 @@ class StoryWindow(QWidget):
                                  
             self.on_option_clicked(f"*(玩家亲自干涉)*: {choice_text}")
 
-    def closeEvent(self, event):
+    def clear_story_content(self):
+
+        self.countdown_timer.stop()
+        self.typewriter_timer.stop()
+
+        self.history_browser.clear()
+        self.current_browser.clear()
+
+        self.target_text = ""
+        self.current_text = ""
+        self.pending_options = []
+        self.time_left = 600
+
+        self.options_widget.hide()
+        self.progress_bar.hide()
+        self.progress_bar.setValue(600)
+
+        for i in reversed(range(self.buttons_layout.count())):
+            widget = self.buttons_layout.itemAt(i).widget()
+            if widget is not None:
+                widget.deleteLater()
+
+        self.custom_choice_input.clear()
+        self.status_label.setText("")
+
+    def request_exit_story(self):
                                   
         msg_box = QMessageBox(self)
         msg_box.setWindowTitle('结束推演')
         msg_box.setText(
-            "确定要彻底结束本次命运推演，让她回归日常模式吗？\n（当前的推演进度将不会保留在面板上，但已存入本地小说日志）")
+            "确定要彻底结束本次命运推演，让她回归日常模式吗？\n"
+            "（当前的推演进度将不会保留在面板上，但已存入本地小说日志）"
+        )
         msg_box.setIcon(QMessageBox.Question)
 
+                   
+        msg_box.setWindowFlags(msg_box.windowFlags() & ~Qt.WindowContextHelpButtonHint)
+                      
+        icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'web/favicon.ico')
+        if os.path.exists(icon_path):
+            msg_box.setWindowIcon(QIcon(icon_path))
+                      
+        msg_box.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+        yes_btn = msg_box.button(QMessageBox.Yes)
+        no_btn = msg_box.button(QMessageBox.No)
+
                          
-        yes_btn = msg_box.addButton("确定", QMessageBox.YesRole)
-        no_btn = msg_box.addButton("取消", QMessageBox.NoRole)
+        yes_btn.setText("确定")
+        no_btn.setText("取消")
 
                               
-        msg_box.setDefaultButton(no_btn)
+        msg_box.setDefaultButton(QMessageBox.No)
+
+                    
+        msg_box.setStyleSheet("""
+                        QMessageBox {
+                            background-color: #f8f9fa;
+                            color: #333333;
+                            font-size: 14px;
+                        }
+                        QLabel {
+                            color: #222222;
+                            font-size: 14px;
+                            min-width: 420px;
+                            min-height: 60px;
+                        }
+                """)
+                             
+        yes_btn.setMinimumSize(90, 34)
+        no_btn.setMinimumSize(90, 34)
+        yes_btn.setStyleSheet("""
+                        QPushButton {
+                            background-color: #ffb6c1;
+                            color: white;
+                            border: none;
+                            border-radius: 6px;
+                            padding: 6px 12px;
+                            font-weight: bold;
+                        }
+                        QPushButton:hover {
+                            background-color: #ff99ab;
+                        }
+                        QPushButton:pressed {
+                            background-color: #ff7f96;
+                        }
+                """)
+        no_btn.setStyleSheet("""
+                        QPushButton {
+                            background-color: #dddddd;
+                            color: #333333;
+                            border: none;
+                            border-radius: 6px;
+                            padding: 6px 12px;
+                            font-weight: bold;
+                        }
+                        QPushButton:hover {
+                            background-color: #cccccc;
+                        }
+                        QPushButton:pressed {
+                            background-color: #bbbbbb;
+                        }
+                """)
+                           
+        msg_box.adjustSize()
+        msg_box.setMinimumWidth(520)
 
                      
-        msg_box.exec_()
+        result = msg_box.exec_()
 
                       
-        if msg_box.clickedButton() == yes_btn:
+        if result == QMessageBox.Yes:
             self.countdown_timer.stop()
             self.typewriter_timer.stop()
+            self.clear_story_content()                  
             self.choice_made.emit("/EXIT_STORY_MODE")
 
                          
@@ -605,6 +698,14 @@ class StoryWindow(QWidget):
             self.status_label.setText("")
             self.hide()
 
+    def closeEvent(self, event):
+                            
+        self.countdown_timer.stop()
+        self.typewriter_timer.stop()
+        self.clear_story_content()
+        self.choice_made.emit("/EXIT_STORY_MODE")
+        self.status_label.setText("")
+        self.hide()
                                          
         event.ignore()
 
@@ -945,6 +1046,9 @@ class RomashaDesktop(QMainWindow):
         self.mouse_timer.timeout.connect(self.track_global_mouse)
                                                  
 
+        self.last_act_tag = ""
+        self.last_act_time = 0
+
         self.init_ui()
 
                             
@@ -1049,6 +1153,7 @@ class RomashaDesktop(QMainWindow):
 
         if choice_text == "/EXIT_STORY_MODE":
             self.is_story_mode = False
+            self.pending_story_options = []
                                                    
             self.brain_worker.is_cancelled = True
 
@@ -1489,12 +1594,19 @@ class RomashaDesktop(QMainWindow):
             self.reset_afk()
 
             if user_text.strip() == '/reset':
-                reply = QMessageBox.warning(
-                    self, '「不可逆的抉择：世界线重置」',
-                    "真的要让她忘记这一切吗？\n你们将回到最初始的陌生人状态。",
-                    QMessageBox.Yes | QMessageBox.No, QMessageBox.No
-                )
-                if reply == QMessageBox.Yes:
+                msg_box = QMessageBox(self)
+                msg_box.setWindowTitle('「不可逆的抉择：世界线重置」')
+                msg_box.setText("真的要让她忘记这一切吗？\n你们将回到最初始的陌生人状态。")
+                msg_box.setIcon(QMessageBox.Warning)
+                                     
+                icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'web/favicon.ico')
+                if os.path.exists(icon_path):
+                    msg_box.setWindowIcon(QIcon(icon_path))
+                yes_btn = msg_box.addButton("确定", QMessageBox.YesRole)
+                no_btn = msg_box.addButton("取消", QMessageBox.NoRole)
+                msg_box.setDefaultButton(no_btn)
+                msg_box.exec_()
+                if msg_box.clickedButton() == yes_btn:
                                                            
                     self.brain_worker.is_cancelled = True
                     with self.brain_worker.task_queue.mutex:
@@ -1513,6 +1625,7 @@ class RomashaDesktop(QMainWindow):
                     self.touch_temp_locked = False
                     self.refresh_touch_state()
                     self.is_story_mode = False
+                    self.story_window.clear_story_content()
                     self.story_window.hide()
 
                                    
@@ -1665,7 +1778,7 @@ class RomashaDesktop(QMainWindow):
                     return          
 
                 bubble_html = f"<span style='color:#888; font-size: var(--sub-font-size);'><i>({bubble_desc})</i></span>"
-                self.show_system_notification(bubble_html, 1500)                   
+                self.show_system_notification(bubble_html, 5000)                   
                 return
 
                                   
@@ -1970,7 +2083,8 @@ class RomashaDesktop(QMainWindow):
                     else:
                                              
                         self.target_display_text = self.final_clean_text
-                        self.flush_pending_tags()
+                        if self.pending_tags:
+                            self.flush_pending_tags()
 
                                                                 
                         duration_ms = max(4000, len(self.final_clean_text) * 250)
@@ -2015,7 +2129,11 @@ class RomashaDesktop(QMainWindow):
                     if getattr(self, 'is_story_mode', False):
                         self.execute_tag(tag_lower)
                     else:
-                        self.pending_tags.append(tag_lower)                       
+                                              
+                        if self.is_waiting_for_voice:
+                            self.pending_tags.append(tag_lower)                       
+                        else:
+                            self.execute_tag(tag_lower)
 
                                                     
                                   
@@ -2237,7 +2355,13 @@ class RomashaDesktop(QMainWindow):
                 pass
 
 
+
         elif tag.startswith('act_'):
+            now_ts = time.monotonic()
+            if tag == self.last_act_tag and (now_ts - self.last_act_time) < 1.2:
+                return
+            self.last_act_tag = tag
+            self.last_act_time = now_ts
             action_name = tag.split('_', 1)[1]
 
                                
