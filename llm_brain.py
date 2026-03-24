@@ -30,9 +30,9 @@ CONFIG_FILE = os.path.join(app_dir, "config.json")
 def load_config():
     default_config = {
         "api_type": "openai",                               
-        "api_key": "sk-BOIfaNR9CVuERB57c",
-        "base_url": "https://api.wataruu.me/v1",
-        "target_model": "gpt-5.4",
+        "api_key": "你的密钥",
+        "base_url": "你的接口地址",
+        "target_model": "你的模型名",
         "intimacy": 0,                
         "player_name": "",                            
         "current_location": "罗玛莎的房间门口",              
