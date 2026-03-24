@@ -1320,7 +1320,7 @@ class RomashaDesktop(QMainWindow):
             self.browser.page().runJavaScript("window.toggleTracking(false);")
                                                                                              
                                          
-            self.set_idle_motion(motion_manager.get_motion_index('wait_haji'))
+            self.set_idle_motion(motion_manager.get_motion_index('talk'))
 
                                 
             if self.vision_sleep_count == 0:
