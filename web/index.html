@@ -403,7 +403,7 @@
 
                 
                 if (!keepAlive) {
-                    let displayTime = Math.max(5500, text.replace(/<[^>]+>/g, '').length * 230);
+                    let displayTime = Math.max(5500, text.replace(/<[^>]+>/g, '').length * 120);
                     window.bubbleTimeout = setTimeout(() => {
                         chatBubble.style.opacity = 0;
                     }, displayTime);
