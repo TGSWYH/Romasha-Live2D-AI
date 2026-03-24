@@ -283,10 +283,10 @@ def stream_chat_with_romasha(user_text, interrupted_text, thread_obj):
     messages = [{"role": "system", "content": dynamic_system_prompt}]
     messages.extend(chat_history)
     messages.append({"role": "user", "content": injected_user_text})
-    print(f"🧠 [Prompt长度监控] system_prompt字符数: {len(dynamic_system_prompt)}")
-    print(f"🧠 [Prompt长度监控] chat_history条数: {len(chat_history)}")
-    total_chars = sum(len(m.get("content", "")) for m in messages)
-    print(f"🧠 [Prompt长度监控] 本轮总messages字符数: {total_chars}")
+    #print(f"🧠 [Prompt长度监控] system_prompt字符数: {len(dynamic_system_prompt)}")
+    #print(f"🧠 [Prompt长度监控] chat_history条数: {len(chat_history)}")
+    #total_chars = sum(len(m.get("content", "")) for m in messages)
+    #print(f"🧠 [Prompt长度监控] 本轮总messages字符数: {total_chars}")
 
     try:
         full_reply = ""
@@ -675,9 +675,9 @@ def stream_story_with_romasha(level, user_choice_text, thread_obj):
     messages = [{"role": "system", "content": system_prompt}]
                       
                                                                                    
-    print(f"📖 [StoryPrompt长度监控] system_prompt字符数: {len(system_prompt)}")
-    total_chars = sum(len(m.get("content", "")) for m in messages)
-    print(f"📖 [StoryPrompt长度监控] 本轮总messages字符数: {total_chars}")
+    #print(f"📖 [StoryPrompt长度监控] system_prompt字符数: {len(system_prompt)}")
+    #total_chars = sum(len(m.get("content", "")) for m in messages)
+    #print(f"📖 [StoryPrompt长度监控] 本轮总messages字符数: {total_chars}")
 
     try:
         full_reply = ""
