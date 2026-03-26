@@ -1,6 +1,7 @@
                   
 import os
 import sys
+import json
 import datetime
 import shutil
 import re
@@ -18,6 +19,7 @@ SUMMARY_FILE = os.path.join(WORLD_DATA_DIR, "story_summary.txt")
 MAX_SUMMARY_LENGTH = 6000                            
 NOVEL_LOG_FILE = os.path.join(WORLD_DATA_DIR, "novel_log.txt")
 CHRONICLE_FILE = os.path.join(WORLD_DATA_DIR, "final_aligned_story_chronicle.txt")
+RECENT_CHAT_FILE = os.path.join(WORLD_DATA_DIR, "recent_chat_history.json")
 
 _file_lock = threading.Lock()                  
 
@@ -25,6 +27,89 @@ def _ensure_dir():
 
     if not os.path.exists(WORLD_DATA_DIR):
         os.makedirs(WORLD_DATA_DIR)
+
+def load_recent_chat_history(max_items=16):
+
+
+
+
+    _ensure_dir()
+    if not os.path.exists(RECENT_CHAT_FILE):
+        return []
+
+    try:
+        with open(RECENT_CHAT_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        if not isinstance(data, list):
+            return []
+
+        cleaned = []
+        for item in data:
+            if not isinstance(item, dict):
+                continue
+            role = item.get("role")
+            content = item.get("content")
+            if role in ("user", "assistant") and isinstance(content, str):
+                cleaned.append({
+                    "role": role,
+                    "content": content
+                })
+
+                                
+        if max_items is not None and max_items > 0:
+            cleaned = cleaned[-max_items:]
+
+        return cleaned
+
+    except Exception as e:
+        print(f"⚠️ [世界法则] 读取最近对话历史失败: {e}")
+        return []
+
+
+def save_recent_chat_history(history, max_items=16):
+
+
+
+    _ensure_dir()
+    with _file_lock:
+        try:
+            if not isinstance(history, list):
+                history = []
+
+            cleaned = []
+            for item in history:
+                if not isinstance(item, dict):
+                    continue
+                role = item.get("role")
+                content = item.get("content")
+                if role in ("user", "assistant") and isinstance(content, str):
+                    cleaned.append({
+                        "role": role,
+                        "content": content
+                    })
+
+            if max_items is not None and max_items > 0:
+                cleaned = cleaned[-max_items:]
+
+            with open(RECENT_CHAT_FILE, "w", encoding="utf-8") as f:
+                json.dump(cleaned, f, ensure_ascii=False, indent=2)
+
+        except Exception as e:
+            print(f"⚠️ [世界法则] 保存最近对话历史失败: {e}")
+
+
+def clear_recent_chat_history():
+
+
+
+    with _file_lock:
+        if os.path.exists(RECENT_CHAT_FILE):
+            try:
+                os.remove(RECENT_CHAT_FILE)
+                print("🧹 [剧情重置] 最近对话缓存已被清空。")
+            except Exception as e:
+                print(f"⚠️ [世界法则] 清空最近对话历史失败: {e}")
 
 def get_summary():
 

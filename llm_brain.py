@@ -126,7 +126,9 @@ client = OpenAI(
 )
 TARGET_MODEL = config.get("target_model", "")
 
-chat_history = []
+chat_history = story_manager.load_recent_chat_history(max_items=16)
+if chat_history:
+    print(f"💾 [余温尚存]: 她似乎还记得上次分别前，你们最后说过的话。已恢复最近 {len(chat_history)} 条短期对话。")
 
 
 def stream_chat_with_romasha(user_text, interrupted_text, thread_obj):
@@ -207,7 +209,13 @@ def stream_chat_with_romasha(user_text, interrupted_text, thread_obj):
                                  
         recent_msgs = chat_history[-4:]
                              
-        recent_context = " ".join([msg["content"] for msg in recent_msgs])
+        recent_context_list = []
+        for msg in recent_msgs:
+            clean_content = re.sub(r'\[.*?\]', '', msg["content"])
+            clean_content = re.sub(r'^.*?<\|endofprompt\|>', '', clean_content).strip()
+            if clean_content:
+                recent_context_list.append(clean_content)
+        recent_context = " ".join(recent_context_list)
                                    
         scan_text = recent_context + " " + user_text
                                   
@@ -283,10 +291,10 @@ def stream_chat_with_romasha(user_text, interrupted_text, thread_obj):
     messages = [{"role": "system", "content": dynamic_system_prompt}]
     messages.extend(chat_history)
     messages.append({"role": "user", "content": injected_user_text})
-    #print(f"🧠 [Prompt长度监控] system_prompt字符数: {len(dynamic_system_prompt)}")
-    #print(f"🧠 [Prompt长度监控] chat_history条数: {len(chat_history)}")
-    #total_chars = sum(len(m.get("content", "")) for m in messages)
-    #print(f"🧠 [Prompt长度监控] 本轮总messages字符数: {total_chars}")
+    print(f"🧠 [Prompt长度监控] system_prompt字符数: {len(dynamic_system_prompt)}")
+    print(f"🧠 [Prompt长度监控] chat_history条数: {len(chat_history)}")
+    total_chars = sum(len(m.get("content", "")) for m in messages)
+    print(f"🧠 [Prompt长度监控] 本轮总messages字符数: {total_chars}")
 
     try:
         full_reply = ""
@@ -362,6 +370,8 @@ def stream_chat_with_romasha(user_text, interrupted_text, thread_obj):
 
         chat_history.append({"role": "user", "content": user_text})
         chat_history.append({"role": "assistant", "content": full_reply})
+                            
+        story_manager.save_recent_chat_history(chat_history, max_items=16)
 
                                                     
                              
@@ -370,6 +380,8 @@ def stream_chat_with_romasha(user_text, interrupted_text, thread_obj):
         if len(chat_history) > 16:
             messages_to_summarize = chat_history[:6]
             chat_history = chat_history[6:]                           
+                                           
+            story_manager.save_recent_chat_history(chat_history, max_items=16)
 
                                        
             update_story_summary_background(messages_to_summarize)
@@ -675,9 +687,9 @@ def stream_story_with_romasha(level, user_choice_text, thread_obj):
     messages = [{"role": "system", "content": system_prompt}]
                       
                                                                                    
-    #print(f"📖 [StoryPrompt长度监控] system_prompt字符数: {len(system_prompt)}")
-    #total_chars = sum(len(m.get("content", "")) for m in messages)
-    #print(f"📖 [StoryPrompt长度监控] 本轮总messages字符数: {total_chars}")
+    print(f"📖 [StoryPrompt长度监控] system_prompt字符数: {len(system_prompt)}")
+    total_chars = sum(len(m.get("content", "")) for m in messages)
+    print(f"📖 [StoryPrompt长度监控] 本轮总messages字符数: {total_chars}")
 
     try:
         full_reply = ""

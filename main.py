@@ -736,6 +736,7 @@ class BrainWorker(QThread):
                     memory_manager.clear_all_memories()
                                            
                     llm_brain.chat_history.clear()
+                    story_manager.clear_recent_chat_history()
                                          
                     story_manager.clear_summary()
                                                 
@@ -1688,6 +1689,7 @@ class RomashaDesktop(QMainWindow):
                                             
                     llm_brain.chat_history = [msg for msg in llm_brain.chat_history if
                                               not msg.get("content", "").startswith("[系统机制")]
+                    story_manager.save_recent_chat_history(llm_brain.chat_history, max_items=16)
                     self.show_system_notification(
                         f"<span style='color:#6031e2; font-size: var(--sub-font-size);'><i>(已切入世界线推演模式，参与度: {level}...)</i></span>",
                         3000)
@@ -1701,6 +1703,7 @@ class RomashaDesktop(QMainWindow):
                                            
                 llm_brain.chat_history = [msg for msg in llm_brain.chat_history if
                                           not msg.get("content", "").startswith("[系统机制")]
+                story_manager.save_recent_chat_history(llm_brain.chat_history, max_items=16)
                                     
                 current_level = str(self.story_window.level_combo.currentIndex())
                 self.start_new_thought(f"/STORY_TICK_{current_level}_{choice_text}")
@@ -2449,6 +2452,7 @@ class RomashaDesktop(QMainWindow):
         self.brain_worker.wait()
         self.tts_worker.wait()
 
+        story_manager.save_recent_chat_history(llm_brain.chat_history, max_items=16)
                                                     
         llm_brain.save_config()
         print("\n💾 [羁绊铭记]: 你们之间的距离与视角，已默默留存在了记忆中，期待下次相遇。")
