@@ -42,6 +42,12 @@
 import memory_manager                               
 import sys
 import os
+
+os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = "--disable-logging --log-level=3"
+os.environ["QT_LOGGING_RULES"] = "*.debug=false;qt.webenginecontext.debug=false"
+devnull = open(os.devnull, "w")
+os.dup2(devnull.fileno(), 2)
+
 import re
 import datetime
 import random
