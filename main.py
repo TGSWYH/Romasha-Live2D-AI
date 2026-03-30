@@ -1257,7 +1257,7 @@ class RomashaDesktop(QMainWindow):
 
         elif hour >= 22 or hour <= 6:
                                             
-            if current_intimacy >= 60 and random.random() < 0.35:
+            if current_intimacy >= 75 and random.random() < 0.10:
                 print("\n🛁 [系统提醒]: 夜深了，Romasha 似乎刚洗完澡...")
                 outfit = "towel"
             else:
@@ -1429,7 +1429,7 @@ class RomashaDesktop(QMainWindow):
                                            
                                          
             if outfit_manager._current_outfit not in ["sleepwear", "towel"]:
-                if current_intimacy >= 60 and random.random() < 0.35:
+                if current_intimacy >= 75 and random.random() < 0.10:
                     target_outfit = "towel"
                                                                
                 else:
