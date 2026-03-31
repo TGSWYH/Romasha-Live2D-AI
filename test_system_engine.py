@@ -42,6 +42,7 @@ import outfit_manager
 import motion_manager
 import llm_brain
 import world_info
+import story_manager
 
                                             
                     
@@ -194,6 +195,14 @@ class SystemEngineTester(QMainWindow):
 
         self.script_queue = []
         self.is_script_running = False
+
+                                                    
+                    
+                                                    
+                                          
+                                                            
+                            
+        self.full_future_story_cache = None
 
         self.init_ui()
 
@@ -464,31 +473,55 @@ class SystemEngineTester(QMainWindow):
         self.tabs.addTab(tab, "🛠️ 全量参数矩阵")
 
                                                 
-                    
+                         
                                                 
     def init_time_tab(self):
         tab = QWidget()
         layout = QVBoxLayout(tab)
 
+                                                            
+                                    
+                                                            
         group_custom = QGroupBox("⏳ 精确时空跃迁 (测试生物钟延迟换装)")
         vbox1 = QVBoxLayout()
-        hbox = QHBoxLayout()
-        self.month_spin = QSpinBox(); self.month_spin.setRange(1, 12); self.month_spin.setValue(6)
-        self.day_spin = QSpinBox(); self.day_spin.setRange(1, 31); self.day_spin.setValue(15)
-        self.hour_spin = QSpinBox(); self.hour_spin.setRange(0, 23); self.hour_spin.setValue(12)
-        btn_jump = QPushButton("🚀 强制跃迁")
-        btn_jump.clicked.connect(lambda: self.simulate_time(self.month_spin.value(), self.day_spin.value(), self.hour_spin.value()))
 
-        hbox.addWidget(QLabel("月:")); hbox.addWidget(self.month_spin)
-        hbox.addWidget(QLabel("日:")); hbox.addWidget(self.day_spin)
-        hbox.addWidget(QLabel("时:")); hbox.addWidget(self.hour_spin)
+        hbox = QHBoxLayout()
+        self.month_spin = QSpinBox()
+        self.month_spin.setRange(1, 12)
+        self.month_spin.setValue(6)
+
+        self.day_spin = QSpinBox()
+        self.day_spin.setRange(1, 31)
+        self.day_spin.setValue(15)
+
+        self.hour_spin = QSpinBox()
+        self.hour_spin.setRange(0, 23)
+        self.hour_spin.setValue(12)
+
+        btn_jump = QPushButton("🚀 强制跃迁")
+        btn_jump.clicked.connect(
+            lambda: self.simulate_time(
+                self.month_spin.value(),
+                self.day_spin.value(),
+                self.hour_spin.value()
+            )
+        )
+
+        hbox.addWidget(QLabel("月:"))
+        hbox.addWidget(self.month_spin)
+        hbox.addWidget(QLabel("日:"))
+        hbox.addWidget(self.day_spin)
+        hbox.addWidget(QLabel("时:"))
+        hbox.addWidget(self.hour_spin)
         hbox.addWidget(btn_jump)
         vbox1.addLayout(hbox)
 
         grid_presets = QHBoxLayout()
         presets = [
-            ("早晨 08:00\n(日常紧身)", 6, 15, 8), ("傍晚 19:00\n(连衣制服)", 6, 15, 19),
-            ("深夜 23:00\n(睡衣/洗澡)", 6, 15, 23), ("冬季节日\n(圣诞节)", 12, 25, 14)
+            ("早晨 08:00\n(日常紧身)", 6, 15, 8),
+            ("傍晚 19:00\n(连衣制服)", 6, 15, 19),
+            ("深夜 23:00\n(睡衣/洗澡)", 6, 15, 23),
+            ("冬季节日\n(圣诞节)", 12, 25, 14)
         ]
         for name, m, d, h in presets:
             btn = QPushButton(name)
@@ -496,23 +529,78 @@ class SystemEngineTester(QMainWindow):
             btn.clicked.connect(lambda checked, m=m, d=d, h=h: self.simulate_time(m, d, h))
             grid_presets.addWidget(btn)
         vbox1.addLayout(grid_presets)
+
         group_custom.setLayout(vbox1)
         layout.addWidget(group_custom, stretch=1)
 
+                                                            
+                        
+                                                            
         group_intimacy = QGroupBox("💖 虚拟亲密度注入 (影响高权限判定)")
         vbox2 = QVBoxLayout()
+
         self.lbl_intimacy = QLabel(f"当前沙盒模拟好感度: {llm_brain.config.get('intimacy', 0)} / 100")
         self.lbl_intimacy.setStyleSheet("font-weight: bold; color: #d35400;")
         vbox2.addWidget(self.lbl_intimacy)
+
         self.slider_intimacy = QSlider(Qt.Horizontal)
         self.slider_intimacy.setRange(-100, 100)
         self.slider_intimacy.setValue(llm_brain.config.get("intimacy", 0))
         self.slider_intimacy.valueChanged.connect(self.update_sandbox_intimacy)
         vbox2.addWidget(self.slider_intimacy)
+
         group_intimacy.setLayout(vbox2)
         layout.addWidget(group_intimacy)
 
+                                                            
+                                      
+                                                            
+        group_story = QGroupBox("📚 命运编年史 / 章节跃迁 / 未来认知授权")
+        story_layout = QVBoxLayout()
+
+        self.lbl_story_state = QLabel("")
+        self.lbl_story_state.setStyleSheet("font-weight: bold; color: #6031e2;")
+        story_layout.addWidget(self.lbl_story_state)
+
+        story_hbox = QHBoxLayout()
+        self.chapter_spin = QSpinBox()
+                                       
+        self.chapter_spin.setRange(1, 20)
+        self.chapter_spin.setValue(llm_brain.config.get("current_chapter", 1))
+
+        btn_set_chapter = QPushButton("🌀 时光跳跃到该章节")
+        btn_set_chapter.clicked.connect(self.jump_story_chapter_from_ui)
+
+        btn_prev_chapter = QPushButton("⏪ 时光回溯 -1章")
+        btn_prev_chapter.clicked.connect(lambda: self.shift_story_chapter(-1))
+
+        btn_next_chapter = QPushButton("⏩ 时光飞逝 +1章")
+        btn_next_chapter.clicked.connect(lambda: self.shift_story_chapter(1))
+
+        story_hbox.addWidget(QLabel("目标章节:"))
+        story_hbox.addWidget(self.chapter_spin)
+        story_hbox.addWidget(btn_set_chapter)
+        story_hbox.addWidget(btn_prev_chapter)
+        story_hbox.addWidget(btn_next_chapter)
+        story_layout.addLayout(story_hbox)
+
+        self.chk_reveal_full_story = QCheckBox(
+            "📖 本次测试中授权她知晓未来全部剧情（注入 final_aligned_story_chronicle.txt 全文）")
+        self.chk_reveal_full_story.setStyleSheet("color: #c0392b; font-weight: bold;")
+        self.chk_reveal_full_story.stateChanged.connect(self.on_future_story_toggle)
+        story_layout.addWidget(self.chk_reveal_full_story)
+
+        btn_preview_chronicle = QPushButton("🔍 预览当前注入的章节上下文 / 完整编年史状态")
+        btn_preview_chronicle.clicked.connect(self.preview_story_injection)
+        story_layout.addWidget(btn_preview_chronicle)
+
+        group_story.setLayout(story_layout)
+        layout.addWidget(group_story)
+
         self.tabs.addTab(tab, "⏳ 时空状态")
+
+                                     
+        self.refresh_story_state_label()
 
                                                 
                       
@@ -817,19 +905,32 @@ class SystemEngineTester(QMainWindow):
 
     def simulate_time(self, month, day, hour):
         self.log_param(f"⏰ 时空跳跃: {month}月{day}日 {hour}:00")
+
+                                                            
+                                      
+                             
+                                     
+                                   
+                                                            
         is_holiday = (month, day) in [(1, 1), (2, 14), (12, 25)]
         is_cold = month in [10, 11, 12, 1, 2, 3]
         current_intimacy = llm_brain.config.get("intimacy", 0)
         target_outfit = None
 
-        if is_holiday: target_outfit = "ethnic_cloak" if is_cold else "ethnic_wear"
+        if is_holiday:
+            target_outfit = "ethnic_cloak" if is_cold else "ethnic_wear"
         elif hour >= 22 or hour <= 6:
             if outfit_manager._current_outfit not in ["sleepwear", "towel"]:
-                if current_intimacy >= 60 and random.random() < 0.5: target_outfit = "towel"
-                else: target_outfit = "sleepwear"
-            else: target_outfit = outfit_manager._current_outfit
-        elif hour >= 19: target_outfit = "uniform_dress"
-        else: target_outfit = "uniform_tight"
+                if current_intimacy >= 60 and random.random() < 0.5:
+                    target_outfit = "towel"
+                else:
+                    target_outfit = "sleepwear"
+            else:
+                target_outfit = outfit_manager._current_outfit
+        elif hour >= 19:
+            target_outfit = "uniform_dress"
+        else:
+            target_outfit = "uniform_tight"
 
         if target_outfit:
             if target_outfit != outfit_manager._current_outfit:
@@ -840,6 +941,163 @@ class SystemEngineTester(QMainWindow):
                 outfit_manager._current_outfit = target_outfit
             else:
                 self.log_param(f"⚡ 目标服装已经是 [{target_outfit}]，无需重复切换。")
+
+                                          
+        self.log_param(f"📚 当前章节保持为: 第 {self.get_current_story_chapter()} 章（如需跳章，请使用下方章节跃迁控件）")
+
+                                                        
+                 
+                                                        
+    def get_current_story_chapter(self):
+
+        return int(llm_brain.config.get("current_chapter", 1))
+
+    def refresh_story_state_label(self):
+
+
+
+
+        current_chapter = self.get_current_story_chapter()
+        full_future_enabled = hasattr(self, "chk_reveal_full_story") and self.chk_reveal_full_story.isChecked()
+
+        future_desc = "✅ 已授权知晓完整未来剧情" if full_future_enabled else "🔒 默认仅知晓当前章节上下文"
+        text = f"当前章节: 第 {current_chapter} 章 | 未来剧情权限: {future_desc}"
+
+        if hasattr(self, "lbl_story_state"):
+            self.lbl_story_state.setText(text)
+
+    def load_full_story_chronicle(self):
+
+
+
+
+        if self.full_future_story_cache is not None:
+            return self.full_future_story_cache
+
+        try:
+            chronicle_path = story_manager.CHRONICLE_FILE
+            if not os.path.exists(chronicle_path):
+                self.full_future_story_cache = ""
+                self.log_param(f"⚠️ 未找到剧情纪事本: {chronicle_path}")
+                return ""
+
+            with open(chronicle_path, "r", encoding="utf-8") as f:
+                self.full_future_story_cache = f.read().strip()
+
+            self.log_param("📚 已读取 final_aligned_story_chronicle.txt 全文缓存。")
+            return self.full_future_story_cache
+
+        except Exception as e:
+            self.log_param(f"❌ 读取完整剧情纪事本失败: {e}")
+            self.full_future_story_cache = ""
+            return ""
+
+    def get_current_chapter_context(self):
+
+
+
+
+
+
+        try:
+            current_chapter = self.get_current_story_chapter()
+            return story_manager.get_chronicle_context(current_chapter)
+        except Exception as e:
+            self.log_param(f"⚠️ 获取章节上下文失败: {e}")
+            return "（章节上下文读取失败）"
+
+    def set_story_chapter(self, chapter, reason=""):
+
+
+
+
+        try:
+            chapter = max(1, int(chapter))
+        except Exception:
+            chapter = 1
+
+        llm_brain.config["current_chapter"] = chapter
+
+        try:
+            llm_brain.save_config()
+        except Exception as e:
+            self.log_param(f"⚠️ 保存章节配置失败: {e}")
+
+        if hasattr(self, "chapter_spin"):
+            self.chapter_spin.blockSignals(True)
+            self.chapter_spin.setValue(chapter)
+            self.chapter_spin.blockSignals(False)
+
+        self.refresh_story_state_label()
+
+        reason_text = f" ({reason})" if reason else ""
+        self.log_param(f"📚 当前章节已切换为: 第 {chapter} 章{reason_text}")
+
+                                       
+        self.current_context_html = f"<span style='color:#6031e2;'><i>(命运刻度已拨动至第 {chapter} 章{reason_text}...)</i></span><br>"
+        bubble_html = self.current_context_html + "<span style='color:#888; font-size:12px;'><i>(章节状态已刷新)</i></span>"
+        safe_html = bubble_html.replace("'", "\\'")
+        self.exec_js(f"window.showBubble('{safe_html}');")
+
+    def shift_story_chapter(self, delta):
+
+        current_chapter = self.get_current_story_chapter()
+        target = max(1, current_chapter + int(delta))
+        desc = "时光飞逝" if delta > 0 else "时光回溯"
+        self.set_story_chapter(target, desc)
+
+    def jump_story_chapter_from_ui(self):
+
+        if hasattr(self, "chapter_spin"):
+            self.set_story_chapter(self.chapter_spin.value(), "时光跳跃")
+
+    def on_future_story_toggle(self):
+
+
+
+
+
+        enabled = self.chk_reveal_full_story.isChecked()
+        self.refresh_story_state_label()
+
+        if enabled:
+            self.log_param("📖 已开启完整未来剧情注入：本次测试将把 final_aligned_story_chronicle.txt 全文发送给她。")
+        else:
+            self.log_param("🔒 已关闭完整未来剧情注入：恢复为仅发送当前章节上下文。")
+
+    def preview_story_injection(self):
+
+
+
+
+        current_chapter = self.get_current_story_chapter()
+        chapter_context = self.get_current_chapter_context()
+        full_future_enabled = self.chk_reveal_full_story.isChecked()
+        full_text = self.load_full_story_chronicle() if full_future_enabled else "（当前未启用完整未来剧情全文注入）"
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("剧情注入预览")
+        dialog.resize(1000, 700)
+        layout = QVBoxLayout(dialog)
+
+        text_edit = QTextEdit()
+        text_edit.setReadOnly(True)
+        text_edit.setStyleSheet("background-color: #1e1e1e; color: #d4d4d4; font-family: Consolas;")
+        text_edit.setPlainText(
+            f"================ 当前章节 ================\n"
+            f"第 {current_chapter} 章\n\n"
+            f"================ 默认注入：当前章节上下文 ================\n"
+            f"{chapter_context}\n\n"
+            f"================ 额外注入：完整未来剧情全文 ================\n"
+            f"{full_text}"
+        )
+        layout.addWidget(text_edit)
+
+        btn_close = QPushButton("关闭")
+        btn_close.clicked.connect(dialog.accept)
+        layout.addWidget(btn_close)
+
+        dialog.exec_()
 
                     
     def toggle_vision_tracking(self):
@@ -1020,7 +1278,7 @@ class SystemEngineTester(QMainWindow):
         try:
             if mode == "real":
                 self.log_param("📖 提取真实海马体...")
-                results = memory_manager.retrieve_relevant_memories("Romasha", n_results=10)
+                results = memory_manager.retrieve_relevant_memories("Romasha", llm_brain.config.get("intimacy", 0), n_results=10)
             else:
                 self.log_param("🧪 提取沙盒隔离记忆...")
                 if sandbox_collection.count() == 0:
@@ -1074,11 +1332,13 @@ class SystemEngineTester(QMainWindow):
         except Exception as e:
             self.log_param(f"❌ 拷贝失败: {e}")
 
-                                                    
+                                                                      
     def _build_prompts(self):
         user_text = self.api_input.toPlainText().strip()
-        if not user_text: user_text = "（测试空输入）"
+        if not user_text:
+            user_text = "（测试空输入）"
 
+                      
         if hasattr(self, 'chk_raw_text_only') and self.chk_raw_text_only.isChecked():
             return "", user_text
 
@@ -1093,6 +1353,7 @@ class SystemEngineTester(QMainWindow):
             "- [mood_wait]: 【当前姿势冻结】保持你前一秒的动作直接定格，完全屏息不动 (适合被吓到愣住、或者屏住呼吸等僵住的情境)\n"
             "- [mood_wait_haji]: 【当前姿势冻结+碎碎念】保持你前一秒的动作定格，但嘴巴微动 (适合在任何姿势下突然陷入纠结、小声嘀咕、赌气等)\n"
         )
+
         outfits_list_str = (
             "- [wear_uniform_tight]: 紧身制服 (日常居家/白天)\n"
             "- [wear_uniform_dress]: 连衣裙制服 (更文雅的日常)\n"
@@ -1103,6 +1364,7 @@ class SystemEngineTester(QMainWindow):
             "- [wear_towel]: 裹浴巾 (刚洗完澡时穿)\n"
             "- [wear_bunny]: 兔女郎装 (情趣/被特殊要求时)\n"
         )
+
         hairs_list_str = (
             "- [hair_loose]: 散开头发\n"
             "- [hair_bun]: 把头发盘起来 (丸子头/马尾)\n"
@@ -1111,21 +1373,65 @@ class SystemEngineTester(QMainWindow):
         current_time_str = datetime.datetime.now().strftime("%Y年%m月%d日 %H:%M")
         current_outfit = outfit_manager._current_outfit if outfit_manager._current_outfit else "未知"
         current_intimacy = llm_brain.config.get("intimacy", 0)
+        current_chapter = self.get_current_story_chapter()
 
+                                                            
+                      
+                                                            
         memories = ""
         try:
             res = sandbox_collection.query(query_texts=[user_text], n_results=3)
             docs = res.get('documents', [[]])[0]
-            if docs: memories = "\n---\n".join(docs)
-        except: pass
+            if docs:
+                memories = "\n---\n".join(docs)
+        except Exception:
+            pass
 
-        system_prompt = f"{llm_brain.persona.ROMASHA_PROMPT}\n\n"
+                                                            
+                                     
+                                                            
+        chapter_context = self.get_current_chapter_context()
+
+                                                            
+                       
+                                                             
+                                              
+                                                            
+        full_future_story_enabled = hasattr(self, "chk_reveal_full_story") and self.chk_reveal_full_story.isChecked()
+        full_future_story_text = self.load_full_story_chronicle() if full_future_story_enabled else ""
+
+                                                         
+                          
+                                                     
+                                                          
+        is_voice_on = llm_brain.config.get("voice_enabled", True)
+        tts_engine = llm_brain.config.get("tts_engine", "cosyvoice")
+        use_cosyvoice = is_voice_on and (tts_engine == "cosyvoice")
+
+        system_prompt = f"{llm_brain.persona.get_romasha_prompt(use_cosyvoice)}\n\n"
         system_prompt += f"【世界与背景档案】\n{world_info.get_full_lore()}\n\n"
+
+                      
+        system_prompt += f"【📚 命运编年史 (当前测试章节：第 {current_chapter} 章)】\n"
+        system_prompt += f"{chapter_context}\n\n"
+
+                         
+        if full_future_story_enabled and full_future_story_text:
+            system_prompt += (
+                "【🚨 特殊测试授权：未来全剧情认知已解除封锁】\n"
+                "注意：本轮测试中，你被系统明确授权，可以直接知晓、理解并讨论完整编年史中的全部剧情，"
+                "包括尚未发生的未来章节、宿命走向、人物结局与世界真相。\n"
+                "这会覆盖你平时“只能知道当前阶段剧情”的默认限制。\n"
+                "以下是完整剧情纪事本全文，请你将其视为已被明确告知的信息，而不是模糊预感：\n\n"
+                f"{full_future_story_text}\n\n"
+            )
+
         system_prompt += f"【来自海马体的过往记忆 (读取沙盒)】\n{memories if memories else '（当前没有唤醒特定的过往回忆）'}\n\n"
+
         system_prompt += f"【你的当前物理状态】\n"
         system_prompt += f"- 现实时间：{current_time_str}\n"
         system_prompt += f"- 你当前正穿着：{current_outfit}\n"
-                          
+        system_prompt += f"- 你当前所处章节：第 {current_chapter} 章\n"
         system_prompt += f"- 你当前对我的【亲密度】：{current_intimacy} / 100 \n"
         system_prompt += f"  (说明：负数代表厌恶/恐惧，0-30是陌生/戒备，30-60是朋友/信任，60-80是暧昧，80-100是极度依赖/深爱)\n"
         system_prompt += f"⚠️ 换装与发型规则：你可以根据聊天情境（例如我要你换衣服、你要去洗澡、睡觉或庆祝特殊节日）自主输出 [wear_xxx] 或 [hair_xxx] 标签换衣服或发型。如果没有换装或换发型的行为，【绝对禁止】输出这两个标签！保持现状即可。\n\n"
@@ -1147,14 +1453,26 @@ class SystemEngineTester(QMainWindow):
         if hasattr(self, 'lbl_token_estimate'):
             self.lbl_token_estimate.setText(f"📊 字符数: {total_chars} | 预估 Token: ~{est_tokens}")
 
+        current_chapter = self.get_current_story_chapter()
+        full_future_enabled = hasattr(self, "chk_reveal_full_story") and self.chk_reveal_full_story.isChecked()
+
+        header = (
+            f"=============== [ Prompt 构造状态 ] ===============\n"
+            f"当前章节: 第 {current_chapter} 章\n"
+            f"完整未来剧情注入: {'已开启' if full_future_enabled else '未开启'}\n\n"
+        )
+
         if not system_prompt:
-            final_output = f"=============== [ 🍃 极简省流模式 (未携带系统设定与记忆) ] ===============\n{user_text}\n"
+            final_output = header
+            final_output += f"=============== [ 🍃 极简省流模式 (未携带系统设定与记忆) ] ===============\n{user_text}\n"
         else:
-            final_output = f"=============== [ 发往 LLM 的 System 设定 ] ===============\n{system_prompt}\n"
+            final_output = header
+            final_output += f"=============== [ 发往 LLM 的 System 设定 ] ===============\n{system_prompt}\n"
             final_output += f"=============== [ 发往 LLM 的 User 输入 ] ===============\n{user_text}\n"
 
         self.api_output.setPlainText(final_output)
-        self.log_param(f"🔍 Prompt 组装完毕 (预估Token: {est_tokens})。")
+        self.log_param(
+            f"🔍 Prompt 组装完毕 (第{current_chapter}章 | 完整未来注入: {'开' if full_future_enabled else '关'} | 预估Token: {est_tokens})。")
 
     def send_real_api_request(self):
         api_type = self.input_api_type.currentText().strip()
@@ -1229,13 +1547,26 @@ class SystemEngineTester(QMainWindow):
 
     def show_lore_window(self):
         dialog = QDialog(self)
-        dialog.setWindowTitle("世界观底层封装数据嗅探")
-        dialog.resize(800, 600)
+        dialog.setWindowTitle("世界观 / 当前章节 / 完整编年史检视")
+        dialog.resize(1000, 750)
         layout = QVBoxLayout(dialog)
 
         text_edit = QTextEdit()
         text_edit.setReadOnly(True)
-        text_edit.setPlainText(world_info.get_full_lore())
+
+        current_chapter = self.get_current_story_chapter()
+        chapter_context = self.get_current_chapter_context()
+        full_story = self.load_full_story_chronicle()
+
+        text_edit.setPlainText(
+            "================ [ world_info.get_full_lore() ] ================\n"
+            f"{world_info.get_full_lore()}\n\n"
+            "================ [ 当前章节上下文 ] ================\n"
+            f"当前章节: 第 {current_chapter} 章\n"
+            f"{chapter_context}\n\n"
+            "================ [ final_aligned_story_chronicle.txt 全文 ] ================\n"
+            f"{full_story if full_story else '（未找到或读取失败）'}"
+        )
         text_edit.setStyleSheet("font-size: 14px; line-height: 1.5;")
         layout.addWidget(text_edit)
 
@@ -1243,7 +1574,7 @@ class SystemEngineTester(QMainWindow):
         btn_close.clicked.connect(dialog.accept)
         layout.addWidget(btn_close)
 
-        self.log_param("🌍 已弹出世界观封装检视大窗口。")
+        self.log_param("🌍 已弹出世界观 / 章节 / 编年史综合检视窗口。")
         dialog.exec_()
 
 
