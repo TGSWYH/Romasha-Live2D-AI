@@ -44,6 +44,14 @@ def load_config():
         "pos_y": 200,
         "track_enabled": True,
         "touch_enabled": True,
+                                          
+        "saved_outfit": "",
+        "saved_hair": "",
+        "saved_outfit_period": "",
+        "night_outfit_roll_key": "",
+        "night_outfit_result": "",
+                                      
+        "last_recent_chat_time": 0,
                             
         "voice_enabled": True,
         "tts_engine": "cosyvoice",                              
@@ -126,10 +134,148 @@ client = OpenAI(
 )
 TARGET_MODEL = config.get("target_model", "")
 
-chat_history = story_manager.load_recent_chat_history(max_items=16)
-if chat_history:
-    print(f"💾 [余温尚存]: 她似乎还记得上次分别前，你们最后说过的话。已恢复最近 {len(chat_history)} 条短期对话。")
 
+recent_chat_bundle = story_manager.load_recent_chat_history(max_items=16)
+chat_history = recent_chat_bundle.get("history", [])
+recent_chat_meta = recent_chat_bundle.get("meta", {})
+
+if chat_history:
+    elapsed = recent_chat_meta.get("elapsed_minutes", 0.0)
+    stale = recent_chat_meta.get("is_stale", False)
+
+    if stale:
+        print(f"💾 [旧日余温]: 已恢复最近 {len(chat_history)} 条短期对话记录，但距离上次交流已过去约 {elapsed} 分钟。")
+    else:
+        print(f"💾 [余温尚存]: 她似乎还记得上次分别前，你们最后说过的话。已恢复最近 {len(chat_history)} 条短期对话。")
+else:
+    recent_chat_meta = {
+        "last_saved_at": None,
+        "session_started_at": None,
+        "elapsed_minutes": 0.0,
+        "is_stale": False
+    }
+
+
+def flush_stale_recent_chat_to_summary():
+
+
+
+
+
+
+
+
+
+
+    global chat_history, recent_chat_meta
+
+    try:
+        if not chat_history:
+            return
+
+        if not recent_chat_meta.get("is_stale", False):
+            return
+
+        dialogue_text = story_manager.format_recent_chat_for_summary(chat_history)
+        if not dialogue_text.strip():
+            story_manager.clear_recent_chat_history()
+            chat_history = []
+            recent_chat_meta = {
+                "last_saved_at": None,
+                "session_started_at": None,
+                "elapsed_minutes": 0.0,
+                "is_stale": False
+            }
+            return
+
+        current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+        elapsed = recent_chat_meta.get("elapsed_minutes", 0.0)
+
+        print(f"🕰️ [记忆沉降]: 距离上次的交谈已经过去了约 {elapsed} 分钟，那些尚未散尽的话语正慢慢沉入更深的记忆层。")
+        append_prompt = (
+            f"你是一个旁白记录者。以下内容是玩家与 Romasha 在较早之前发生的一小段对话，"
+            f"距今约已经过去 {elapsed} 分钟。请把它压缩成一段 120-320 字以内的精简补充摘要。\n"
+            f"要求：\n"
+            f"1. 只提炼刚才那段对话中真正重要的信息、情绪变化、约定、承诺、称呼变化、地点变化、关系推进或关键线索等；\n"
+            f"2. 不要写成现场对白续接；\n"
+            f"3. 不要包含任何如 [act_]、[mood_] 之类的标签；\n"
+            f"4. 语气应像“上次分别前，你们聊过这些内容”的回顾总结。\n\n"
+            f"对话内容：\n{dialogue_text}"
+        )
+
+        messages = [{"role": "user", "content": append_prompt}]
+        api_type = config.get("api_type", "openai").lower()
+        compressed_entry = ""
+
+        if api_type == "openai":
+            response = client.chat.completions.create(
+                model=TARGET_MODEL,
+                messages=messages,
+                temperature=0.3
+            )
+            compressed_entry = response.choices[0].message.content.strip()
+
+        elif api_type == "ollama":
+            base_url = config.get("base_url", "").rstrip('/')
+            if not base_url.endswith('/api/chat'):
+                base_url = f"{base_url}/api/chat"
+
+            payload = {
+                "model": TARGET_MODEL,
+                "messages": messages,
+                "stream": False,
+                "options": {"temperature": 0.3}
+            }
+            headers = {"Content-Type": "application/json"}
+            if config.get("api_key", ""):
+                headers["Authorization"] = f"Bearer {config.get('api_key', '')}"
+
+            resp = requests.post(base_url, json=payload, headers=headers, timeout=60.0)
+            if resp.status_code == 200:
+                compressed_entry = resp.json().get("message", {}).get("content", "").strip()
+
+        if not compressed_entry:
+                                                                
+            compressed_entry = f"上次分别前，你们之间还留下一段未完全散去的交谈，内容大致围绕：{dialogue_text[:220].replace(chr(10), '；')}"
+        formatted_entry = f"[{current_time}]（上次分别前的余音）{compressed_entry}"
+        story_manager.append_to_summary(formatted_entry)
+        print("📝 [岁月沉淀]: 先前那段已失去现场温度的对话，被轻轻收进了前情提要里。")
+
+                                                       
+        story_manager.clear_recent_chat_history()
+        chat_history = []
+        recent_chat_meta = {
+            "last_saved_at": None,
+            "session_started_at": None,
+            "elapsed_minutes": 0.0,
+            "is_stale": False
+        }
+
+    except Exception as e:
+        print(f"⚠️ [回忆受阻]: 那段旧话语在沉入更深记忆时出了点岔子……({e})")
+        try:
+            current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+            fallback_entry = f"[{current_time}]（上次分别前的余音）上次分别前，你们之间还留下一段未完全散去的交谈，内容大致围绕：{dialogue_text[:220].replace(chr(10), '；')}"
+            story_manager.append_to_summary(fallback_entry)
+            story_manager.clear_recent_chat_history()
+            chat_history = []
+            recent_chat_meta = {
+                "last_saved_at": None,
+                "session_started_at": None,
+                "elapsed_minutes": 0.0,
+                "is_stale": False
+            }
+            print("📝 [岁月沉淀]: 虽然整理旧话语时有些迟滞，但那些余温仍被轻轻收入了前情之中。")
+        except Exception as inner_e:
+            print(f"⚠️ [余音未收]: 连兜底补记也没能顺利完成，这段旧对话暂时还停在记忆边缘。({inner_e})")
+
+
+                                                  
+flush_stale_recent_chat_to_summary()
+                             
+recent_chat_bundle = story_manager.load_recent_chat_history(max_items=16)
+chat_history = recent_chat_bundle.get("history", [])
+recent_chat_meta = recent_chat_bundle.get("meta", {})
 
 def stream_chat_with_romasha(user_text, interrupted_text, thread_obj):
     global chat_history
@@ -195,6 +341,29 @@ def stream_chat_with_romasha(user_text, interrupted_text, thread_obj):
     dynamic_system_prompt += f"【📚 命运编年史 (当前所处的世界线：第 {current_chapter} 章)】\n"
     dynamic_system_prompt += f"{chapter_lore}\n"
     dynamic_system_prompt += "⚠️ 警告：你在日常聊天中，必须严格符合当前章节所处的背景与环境！\n\n"
+
+                                            
+    elapsed_minutes = recent_chat_meta.get("elapsed_minutes", 0.0)
+    is_stale_chat = recent_chat_meta.get("is_stale", False)
+    if chat_history:
+        if is_stale_chat:
+            dynamic_system_prompt += (
+                f"【短期记忆的时间状态】\n"
+                f"你仍记得上次分别前聊过的一些内容，但距离那次交流已经过去了约 {elapsed_minutes} 分钟。\n"
+                f"这些内容属于“上次对话的残响”，不是此刻上一秒仍在继续的现场对白。\n"
+                f"你可以自然承接其中的话题、情绪和关系变化，但这次开口时不要直接续写上一句没说完的话，"
+                f"而应当像隔了一段时间后重新开口那样自然回应。\n\n"
+            )
+        else:
+            dynamic_system_prompt += (
+                "【短期记忆的时间状态】\n"
+                "你们距离上次交流时间很短，你们最近一段短期对话记录仍可视作现场尾声的一部分。你可以自然承接最近的话题与语气。\n\n"
+            )
+    else:
+        dynamic_system_prompt += (
+            "【短期记忆的时间状态】\n"
+            "当前没有可视为现场尾声的短期对话记录。若存在剧情摘要或长期记忆，那代表过去发生过的事，而不是此刻上一秒还在继续的话。\n\n"
+        )
 
                                  
     current_summary = story_manager.get_summary()
@@ -288,8 +457,21 @@ def stream_chat_with_romasha(user_text, interrupted_text, thread_obj):
     else:
         injected_user_text = user_text
 
+                                                      
+    api_chat_history = []
+    for msg in chat_history:
+        if not isinstance(msg, dict):
+            continue
+        role = msg.get("role")
+        content = msg.get("content")
+        if role in ("user", "assistant") and isinstance(content, str):
+            api_chat_history.append({
+                "role": role,
+                "content": content
+            })
+
     messages = [{"role": "system", "content": dynamic_system_prompt}]
-    messages.extend(chat_history)
+    messages.extend(api_chat_history)
     messages.append({"role": "user", "content": injected_user_text})
     print(f"🧠 [Prompt长度监控] system_prompt字符数: {len(dynamic_system_prompt)}")
     print(f"🧠 [Prompt长度监控] chat_history条数: {len(chat_history)}")
@@ -368,8 +550,14 @@ def stream_chat_with_romasha(user_text, interrupted_text, thread_obj):
                               
             memory_manager.add_memory(user_text, full_reply, current_intimacy)
 
-        chat_history.append({"role": "user", "content": user_text})
-        chat_history.append({"role": "assistant", "content": full_reply})
+        now_iso = datetime.datetime.now().isoformat()
+        chat_history.append({"role": "user", "content": user_text, "ts": now_iso})
+        chat_history.append({"role": "assistant", "content": full_reply, "ts": now_iso})
+                                
+        llm_brain_time = int(datetime.datetime.now().timestamp())
+        config["last_recent_chat_time"] = llm_brain_time
+        save_config()
+
                             
         story_manager.save_recent_chat_history(chat_history, max_items=16)
 

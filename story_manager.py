@@ -23,6 +23,10 @@ RECENT_CHAT_FILE = os.path.join(WORLD_DATA_DIR, "recent_chat_history.json")
 
 _file_lock = threading.Lock()                  
 
+def _now_iso():
+
+    return datetime.datetime.now().isoformat()
+
 def _ensure_dir():
 
     if not os.path.exists(WORLD_DATA_DIR):
@@ -33,41 +37,101 @@ def load_recent_chat_history(max_items=16):
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     _ensure_dir()
+    empty_result = {
+        "history": [],
+        "meta": {
+            "last_saved_at": None,
+            "session_started_at": None,
+            "elapsed_minutes": 0.0,
+            "is_stale": False
+        }
+    }
     if not os.path.exists(RECENT_CHAT_FILE):
-        return []
+        return empty_result
 
     try:
         with open(RECENT_CHAT_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
 
-        if not isinstance(data, list):
-            return []
+                                            
+        if isinstance(data, list):
+            raw_history = data
+            last_saved_at = None
+            session_started_at = None
+        elif isinstance(data, dict):
+            raw_history = data.get("history", [])
+            last_saved_at = data.get("last_saved_at")
+            session_started_at = data.get("session_started_at")
+        else:
+            return empty_result
+        if not isinstance(raw_history, list):
+            raw_history = []
 
         cleaned = []
-        for item in data:
+        for item in raw_history:
             if not isinstance(item, dict):
                 continue
             role = item.get("role")
             content = item.get("content")
+            ts = item.get("ts")
             if role in ("user", "assistant") and isinstance(content, str):
                 cleaned.append({
                     "role": role,
-                    "content": content
+                    "content": content,
+                    "ts": ts if isinstance(ts, str) else None
                 })
 
                                 
         if max_items is not None and max_items > 0:
             cleaned = cleaned[-max_items:]
 
-        return cleaned
+        elapsed_minutes = 0.0
+        is_stale = False
+        if last_saved_at:
+            try:
+                last_dt = datetime.datetime.fromisoformat(last_saved_at)
+                delta = datetime.datetime.now() - last_dt
+                elapsed_minutes = round(delta.total_seconds() / 60.0, 2)
+                                            
+                                              
+                is_stale = delta.total_seconds() > 30 * 60
+            except Exception:
+                pass
+        return {
+            "history": cleaned,
+            "meta": {
+                "last_saved_at": last_saved_at,
+                "session_started_at": session_started_at,
+                "elapsed_minutes": elapsed_minutes,
+                "is_stale": is_stale
+            }
+        }
 
     except Exception as e:
         print(f"⚠️ [世界法则] 读取最近对话历史失败: {e}")
-        return []
+        return empty_result
 
 
 def save_recent_chat_history(history, max_items=16):
+
+
+
+
 
 
 
@@ -77,23 +141,41 @@ def save_recent_chat_history(history, max_items=16):
             if not isinstance(history, list):
                 history = []
 
+                                                     
+            old_session_started_at = None
+            if os.path.exists(RECENT_CHAT_FILE):
+                try:
+                    with open(RECENT_CHAT_FILE, "r", encoding="utf-8") as f:
+                        old_data = json.load(f)
+                    if isinstance(old_data, dict):
+                        old_session_started_at = old_data.get("session_started_at")
+                except Exception:
+                    pass
+
             cleaned = []
             for item in history:
                 if not isinstance(item, dict):
                     continue
                 role = item.get("role")
                 content = item.get("content")
+                ts = item.get("ts")
                 if role in ("user", "assistant") and isinstance(content, str):
                     cleaned.append({
                         "role": role,
-                        "content": content
+                        "content": content,
+                        "ts": ts if isinstance(ts, str) else _now_iso()
                     })
 
             if max_items is not None and max_items > 0:
                 cleaned = cleaned[-max_items:]
 
+            payload = {
+                "session_started_at": old_session_started_at or _now_iso(),
+                "last_saved_at": _now_iso(),
+                "history": cleaned
+            }
             with open(RECENT_CHAT_FILE, "w", encoding="utf-8") as f:
-                json.dump(cleaned, f, ensure_ascii=False, indent=2)
+                json.dump(payload, f, ensure_ascii=False, indent=2)
 
         except Exception as e:
             print(f"⚠️ [世界法则] 保存最近对话历史失败: {e}")
@@ -110,6 +192,26 @@ def clear_recent_chat_history():
                 print("🧹 [剧情重置] 最近对话缓存已被清空。")
             except Exception as e:
                 print(f"⚠️ [世界法则] 清空最近对话历史失败: {e}")
+
+def format_recent_chat_for_summary(history):
+
+
+
+    if not history:
+        return ""
+
+    lines = []
+    for msg in history:
+        if not isinstance(msg, dict):
+            continue
+        role = "我" if msg.get("role") == "user" else "Romasha"
+        content = msg.get("content", "")
+        clean_content = re.sub(r'\[.*?\]', '', content)
+        clean_content = re.sub(r'^.*?<\|endofprompt\|>', '', clean_content).strip()
+        if clean_content:
+            lines.append(f"{role}: {clean_content}")
+
+    return "\n".join(lines)
 
 def get_summary():
 
