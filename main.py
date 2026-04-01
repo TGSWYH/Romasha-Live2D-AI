@@ -1244,8 +1244,11 @@ class RomashaDesktop(QMainWindow):
 
 
 
+
+
+
         now = now or datetime.datetime.now()
-        month, day, hour = now.month, now.day, now.hour
+        hour = now.hour
 
                             
         holidays = {
@@ -1255,54 +1258,51 @@ class RomashaDesktop(QMainWindow):
             (12, 24): "平安夜", (12, 25): "圣诞节", (12, 31): "跨年夜"
         }
 
-        is_holiday = (month, day) in holidays
-        holiday_name = holidays.get((month, day))
+                                   
+                   
+                                   
+        if hour >= 22 or hour <= 6:
+            base_period = "night"
+                           
+            anchor_date = now.date() if hour >= 22 else (now - datetime.timedelta(days=1)).date()
+        elif hour >= 19:
+            base_period = "evening"
+            anchor_date = now.date()
+        else:
+            base_period = "day"
+            anchor_date = now.date()
+                                   
+                  
+                                   
+        holiday_month = anchor_date.month
+        holiday_day = anchor_date.day
+        is_holiday = (holiday_month, holiday_day) in holidays
+        holiday_name = holidays.get((holiday_month, holiday_day))
+
                                      
-        is_cold = month in [10, 11, 12, 1, 2, 3]
+        is_cold = anchor_date.month in [10, 11, 12, 1, 2, 3]
 
         if is_holiday:
             return {
-                "period_key": f"holiday_{month}_{day}",
+                "period_key": f"holiday_{base_period}_{anchor_date.isoformat()}_{holiday_month}_{holiday_day}",
                 "holiday_name": holiday_name,
                 "is_holiday": True,
                 "is_cold": is_cold,
-                "is_night": False,
-                "is_evening": False,
-                "is_day": False
+                "is_night": base_period == "night",
+                "is_evening": base_period == "evening",
+                "is_day": base_period == "day"
             }
-
-        if hour >= 22 or hour <= 6:
-                                     
-            night_anchor = now.date() if hour >= 22 else (now - datetime.timedelta(days=1)).date()
-            return {
-                "period_key": f"night_{night_anchor.isoformat()}",
-                "holiday_name": None,
-                "is_holiday": False,
-                "is_cold": is_cold,
-                "is_night": True,
-                "is_evening": False,
-                "is_day": False
-            }
-
-        if hour >= 19:
-            return {
-                "period_key": f"evening_{now.date().isoformat()}",
-                "holiday_name": None,
-                "is_holiday": False,
-                "is_cold": is_cold,
-                "is_night": False,
-                "is_evening": True,
-                "is_day": False
-            }
-
+                                   
+                 
+                                   
         return {
-            "period_key": f"day_{now.date().isoformat()}",
+            "period_key": f"{base_period}_{anchor_date.isoformat()}",
             "holiday_name": None,
             "is_holiday": False,
             "is_cold": is_cold,
-            "is_night": False,
-            "is_evening": False,
-            "is_day": True
+            "is_night": base_period == "night",
+            "is_evening": base_period == "evening",
+            "is_day": base_period == "day"
         }
 
     def persist_current_outfit_state(self, period_key):
@@ -1330,38 +1330,65 @@ class RomashaDesktop(QMainWindow):
 
 
 
-                  
+                                       
+                          
+                                       
             if info["is_holiday"]:
+                if info["is_night"]:
+                    if current_intimacy >= 75:
+                        roll_key = llm_brain.config.get("night_outfit_roll_key", "")
+                        roll_result = llm_brain.config.get("night_outfit_result", "")
+
+                                        
+                        if roll_key == period_key and roll_result in ["towel", "sleepwear"]:
+                            return roll_result
+
+                        result = "towel" if random.random() < 0.10 else "sleepwear"
+                        llm_brain.config["night_outfit_roll_key"] = period_key
+                        llm_brain.config["night_outfit_result"] = result
+                        llm_brain.save_config()
+
+                        if result == "towel":
+                            print("\n🛁 [节日夜色]: 节日的夜已经深了，Romasha 似乎刚洗完澡。")
+                        return result
+
+                    return "sleepwear"
+
+                                
                 return "ethnic_cloak" if info["is_cold"] else "ethnic_wear"
 
-                
+                                       
+                   
+                                       
             if info["is_night"]:
-                                                
                 if current_intimacy >= 75:
                     roll_key = llm_brain.config.get("night_outfit_roll_key", "")
                     roll_result = llm_brain.config.get("night_outfit_result", "")
 
-                                        
+                                    
                     if roll_key == period_key and roll_result in ["towel", "sleepwear"]:
                         return roll_result
 
-                                      
                     result = "towel" if random.random() < 0.10 else "sleepwear"
                     llm_brain.config["night_outfit_roll_key"] = period_key
                     llm_brain.config["night_outfit_result"] = result
                     llm_brain.save_config()
 
                     if result == "towel":
-                        print("\n🛁 [系统提醒]: 夜深了，Romasha 似乎刚洗完澡...")
+                        print("\n🛁 [时光流转]: 夜深了，Romasha 似乎刚洗完澡...")
                     return result
 
                 return "sleepwear"
 
-                
+                                       
+                   
+                                       
             if info["is_evening"]:
                 return "uniform_dress"
 
-                
+                                       
+                   
+                                       
             return "uniform_tight"
 
         target_outfit = decide_target_outfit()
@@ -1381,6 +1408,16 @@ class RomashaDesktop(QMainWindow):
             )
         else:
             params = outfit_manager.get_outfit_params(target_outfit)
+                                      
+            if info["is_holiday"] and info["holiday_name"] and not info["is_night"]:
+                print(
+                    f"\n🎉 [节日风信]: 今天是{info['holiday_name']}，她似乎也顺着空气里那点微妙的节日气息，悄悄换上了更合时宜的衣装。")
+            elif target_outfit == "towel":
+                print(f"\n👗 [观察]: 夜深了，听到浴室传来隐约的水声后，Romasha裹着浴巾走了出来。")
+            elif target_outfit == "sleepwear":
+                print(f"\n👗 [观察]: 留意到时间的推移，Romasha默默换上了轻薄的睡衣。")
+            else:
+                print(f"\n👗 [观察]: Romasha已经换上了一身适合现在的衣服。")
 
         for param_id, val in params.items():
             self.set_parameter(param_id, val)
@@ -1528,28 +1565,66 @@ class RomashaDesktop(QMainWindow):
 
                              
         def decide_target_outfit():
-                
+                                       
+                          
+                                       
             if info["is_holiday"]:
+                                           
+                if info["is_night"]:
+                    if current_intimacy >= 75:
+                        roll_key = llm_brain.config.get("night_outfit_roll_key", "")
+                        roll_result = llm_brain.config.get("night_outfit_result", "")
+
+                                        
+                        if roll_key == period_key and roll_result in ["towel", "sleepwear"]:
+                            return roll_result
+
+                        result = "towel" if random.random() < 0.10 else "sleepwear"
+                        llm_brain.config["night_outfit_roll_key"] = period_key
+                        llm_brain.config["night_outfit_result"] = result
+                        llm_brain.save_config()
+
+                        if result == "towel":
+                            print("\n🛁 [节日夜色]: 节日的夜已经深了，Romasha 似乎刚洗完澡。")
+                        return result
+
+                    return "sleepwear"
+
+                                
                 return "ethnic_cloak" if info["is_cold"] else "ethnic_wear"
 
-                
+                                       
+                   
+                                       
             if info["is_night"]:
                 if current_intimacy >= 75:
                     roll_key = llm_brain.config.get("night_outfit_roll_key", "")
                     roll_result = llm_brain.config.get("night_outfit_result", "")
+
+                                    
                     if roll_key == period_key and roll_result in ["towel", "sleepwear"]:
                         return roll_result
+
                     result = "towel" if random.random() < 0.10 else "sleepwear"
                     llm_brain.config["night_outfit_roll_key"] = period_key
                     llm_brain.config["night_outfit_result"] = result
                     llm_brain.save_config()
-                    return result
-                return "sleepwear"
-                                                    
 
-                     
+                    if result == "towel":
+                        print("\n🛁 [时光流转]: 夜深了，Romasha 似乎刚洗完澡...")
+                    return result
+
+                return "sleepwear"
+
+                                       
+                   
+                                       
             if info["is_evening"]:
                 return "uniform_dress"
+
+                                       
+                   
+                                       
             return "uniform_tight"
 
         target_outfit = decide_target_outfit()
@@ -1567,7 +1642,7 @@ class RomashaDesktop(QMainWindow):
                                               
             if getattr(self, 'manual_outfit_lock', False):
                 if info["is_day"]:
-                                                
+                                                    
                     self.manual_outfit_lock = False
                 else:
                                                   
@@ -1577,7 +1652,7 @@ class RomashaDesktop(QMainWindow):
             if target_outfit and target_outfit != outfit_manager._current_outfit:
                 if info["is_holiday"] and info["holiday_name"]:
                     print(
-                        f"\n🎉 [节日风信]: 今天是 {info['holiday_name']}，她似乎也顺着空气里那点微妙的节日气息，悄悄换上了更合时宜的衣装。")
+                        f"\n🎉 [节日风信]: 今天是{info['holiday_name']}，她似乎也顺着空气里那点微妙的节日气息，悄悄换上了更合时宜的衣装。")
                 elif target_outfit == "towel":
                     print(f"\n👗 [观察]: 夜深了，听到浴室传来隐约的水声后，Romasha裹着浴巾走了出来。")
                 elif target_outfit == "sleepwear":
