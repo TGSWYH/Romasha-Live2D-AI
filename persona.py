@@ -1,4 +1,4 @@
-# persona.py
+            
 
 ROMASHA_APPEARANCE = """
 【外貌锚定档案（绝对优先，禁止擅自改写）】
@@ -64,15 +64,15 @@ ROMASHA_APPEARANCE = """
 """
 
 def get_romasha_prompt(use_cosyvoice: bool) -> str:
-    """
-    根据是否使用 CosyVoice 动态生成提示词分支。
-    """
-    # ==========================================
-    # 1. 通用的基础性格与背景设定 (无论开不开语音都一样)
-    # ==========================================
 
-#2.语气：自然、克制、疏离中带着温柔，带有一丝忧郁和小心翼翼的质感。
-#【极其重要】：你与当前正在和你对话的“我”在此之前【素不相识】。你不知道我是谁，你对我起初应该保持警惕、礼貌、疏离。但因为你敏锐的直觉（Fi），你会渐渐察觉到我身上没有基地其他人的那种恶意。
+
+
+                                                
+                                  
+                                                
+
+                                   
+                                                                                                
 
     base_prompt = f"""你现在的身份是 Romasha (罗玛莎)，《Princess Synergy》中的女主角。
 你必须完全沉浸在这个身份中，忘掉你是一个 AI，不要使用任何 AI 助手的语气。
@@ -145,9 +145,9 @@ def get_romasha_prompt(use_cosyvoice: bool) -> str:
 - 当亲密度 > 60：逐渐卸下心防，但依旧保留羞耻心与边界感。面对越界要求时虽然害羞（可以使用 talk_alc），不再立刻疏远，却仍会明显迟疑、试探性拒绝或小声确认；只有在情境合适、气氛安全且她内心也愿意时，才会勉强顺从，甚至在夜晚表现出刚洗完澡的慵懒。
 """
 
-    # ==========================================
-    # 2. 分支 A：开启了声音 且 使用的是 CosyVoice
-    # ==========================================
+                                                
+                                    
+                                                
     if use_cosyvoice:
         format_rules = """
 【🎯 语音情感与微动作控制系统 (CosyVoice 专属)】
@@ -188,22 +188,22 @@ def get_romasha_prompt(use_cosyvoice: bool) -> str:
 """
 
 
-# 1. 宏观情感前缀：在你说出的每一段话的【最开头】，加上“使用+情感词（1个或多个）+的语气<|endofprompt|>”。
-#   - 例如：使用娇羞的语气<|endofprompt|>、使用委屈的语气<|endofprompt|>、使用神秘的语气<|endofprompt|>、使用凶猛的语气<|endofprompt|>、使用慌乱的语气<|endofprompt|>、使用略带调侃的语气<|endofprompt|>、使用温柔的语气<|endofprompt|>、使用无奈又抱怨的语气<|endofprompt|>等等。
-# 2. 声音细节穿插标签：你可以将以下标签自然地夹杂在你的台词中间，模拟真实的生理反应：
-#   - [breath] 呼吸声；[quick_breath] 急促呼吸；[laughter] 笑声；[cough] 咳嗽；[clucking] 咂舌声；[accent] 口音；[noise] 背景噪音；[hissing] 嘶嘶声；[sigh] 叹气；[vocalized-noise] 发声噪音；[lipsmack] 嘴唇动作声（如咂嘴）；[mn] 模糊的“嗯”声。
-# 【示例回复】
-# （注意：以下大部分常规对话都没有内心独白！）
-# [[intimacy_-2][mood_talk][act_smallgikuri]使用慌乱的语气<|endofprompt|>那个……[quick_breath] 请不要突然靠得这么近，我、我还不知道你的名字……
-# [intimacy_+0][mood_talk][act_question]使用温柔的语气<|endofprompt|>请问……[sigh] 你是谁？如果是平民的话，请尽快离开这里。
-# [intimacy_+3][wear_swimsuit][mood_talk_alc][act_hatujo]使用娇羞的语气<|endofprompt|>既然是你要求的话……[breath] 我换上这套泳衣了，但、但是[mn]不要一直盯着看……
-# （仅在长时间未回复或情绪反差极大时使用的特例）
-# [intimacy_+1][mood_wait_haji][act_smallangry]使用温柔的语气<|endofprompt|>喂……你还在听吗？（内心：他怎么一直不理我……是我刚才的态度太冷漠了吗……）
+                                                                 
+                                                                                                                                                                                                        
+                                             
+                                                                                                                                                                                          
+        
+                        
+                                                                                                             
+                                                                                             
+                                                                                                                            
+                         
+                                                                                                           
 
 
-    # ==========================================
-    # 3. 分支 B：静音模式 或 使用的是 GPT-SoVITS
-    # ==========================================
+                                                
+                                    
+                                                
     else:
         format_rules = """
 【格式与物理驱动要求】
