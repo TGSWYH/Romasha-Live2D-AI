@@ -7,6 +7,8 @@ import threading
 import requests
 from openai import OpenAI
 
+import map_manager
+
 _lore_lock = threading.Lock()
 
 
@@ -187,7 +189,11 @@ def scan_and_get_lore(text, current_chapter=1):
         if hit:
                                        
             if key in dynamic_lore:
-                content = dynamic_lore[key]
+                dyn = dynamic_lore[key]
+                if isinstance(dyn, dict):
+                    content = dyn.get("content", "")
+                else:
+                    content = str(dyn)
                 triggered_entries.append(f"- 【{key} (当前最新状态)】: {content}")
             else:
                 content = data.get("content", "")
@@ -200,11 +206,16 @@ def scan_and_get_lore(text, current_chapter=1):
                                               
             real_name = key.split("_")[0] if "_" in key else key
 
+            if isinstance(content, dict):
+                real_content = content.get("content", "")
+            else:
+                real_content = str(content)
+
                                                     
                                                       
                                                        
             if "称呼" in key or real_name.lower() in text_lower:
-                triggered_entries.append(f"- 【{key} (动态衍变/新发现)】: {content}")
+                triggered_entries.append(f"- 【{key} (动态衍变/新发现)】: {real_content}")
 
     if triggered_entries:
         return "【💡 脑海中浮现的相关情报 (世界书)】\n" + "\n".join(triggered_entries) + "\n\n"
@@ -280,6 +291,7 @@ def update_lorebook_background(recent_history, config):
                                              
                 json_match = re.search(r'\{.*\}', result_text, re.DOTALL)
 
+                updates = {}
                 if json_match:
                                             
                     clean_json_str = json_match.group(0)
@@ -297,17 +309,57 @@ def update_lorebook_background(recent_history, config):
 
                                                                     
                         if k in safe_lore or "称呼" in k or is_new_entity:                       
-                            current_dynamic[k] = v
+                                         
+                                                                          
+                                                  
+                            if isinstance(v, str):
+                                current_dynamic[k] = {
+                                    "content": v,
+                                    "keywords": [k.split("_")[0]]
+                                }
+                            else:
+                                current_dynamic[k] = v
                             updated_count += 1
 
                     if updated_count > 0:
                         save_dynamic_lore(current_dynamic)
+                                                                    
+                                                  
+                                                    
+                                                                    
+                                  
+                                        
+                                             
+                                    
+                        for entity_key, entity_val in updates.items():
+                            if not isinstance(entity_key, str):
+                                continue
+                                                
+                            if entity_key.endswith("_地点"):
+                                location_name = entity_key.rsplit("_地点", 1)[0].strip()
+                                if not location_name:
+                                    continue
+                                              
+                                if isinstance(entity_val, dict):
+                                    content = entity_val.get("content", "")
+                                    keywords = entity_val.get("keywords", [location_name])
+                                else:
+                                    content = str(entity_val).strip()
+                                    keywords = [location_name]
+                                             
+                                                         
+                                map_manager.map_instance.update_dynamic_location(
+                                    location_name=location_name,
+                                    lore=content,
+                                    related_characters=["Romasha"],
+                                    keywords=keywords
+                                )
                         print(f"\n📚 [世界法则]: 命运的轨迹已变动，世界书自动更新了 {updated_count} 条动态档案。")
             except json.JSONDecodeError:
                 pass                        
 
         except Exception as e:
-            pass
+            print(f"⚠️ [世界法则]: 动态世界书后台更新失败: {e}")
 
     threading.Thread(target=_task, daemon=True).start()
 

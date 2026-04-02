@@ -92,12 +92,76 @@ else:
     app_dir = os.path.dirname(os.path.abspath(__file__))
 
 MAP_FILE = os.path.join(app_dir, "world_data", "game_map_system.json")
+        
+                                        
+                                 
+                          
+                                    
+DYNAMIC_MAP_FILE = os.path.join(app_dir, "world_data", "dynamic_map.json")
+
+
+def _ensure_world_data_dir():
+
+
+
+
+    os.makedirs(os.path.dirname(MAP_FILE), exist_ok=True)
+
+
+def load_dynamic_map():
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    _ensure_world_data_dir()
+
+    if not os.path.exists(DYNAMIC_MAP_FILE):
+        return {}
+
+    try:
+        with open(DYNAMIC_MAP_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if isinstance(data, dict):
+            return data
+        return {}
+    except Exception as e:
+        print(f"⚠️ [空间感知]: 读取动态地图失败: {e}")
+        return {}
+
+
+def save_dynamic_map(data):
+
+
+
+
+    _ensure_world_data_dir()
+
+    try:
+        if not isinstance(data, dict):
+            data = {}
+
+        with open(DYNAMIC_MAP_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
+    except Exception as e:
+        print(f"⚠️ [空间感知]: 保存动态地图失败: {e}")
 
 
 class MapManager:
     def __init__(self):
         self.map_data = {}
         self.flat_locations = {}
+        self.static_location_names = set()                                   
         self.load_map()
 
     def load_map(self):
@@ -110,21 +174,247 @@ class MapManager:
                 data = json.load(f)
                 self.map_data = data.get("MapSystem", {})
 
+                                                        
+                                            
+                                                        
                                 
             for zone_name, zone_info in self.map_data.items():
                 for sub_loc_name, sub_loc_info in zone_info.get("sub_locations", {}).items():
-                    self.flat_locations[sub_loc_name] = sub_loc_info
+                    self.flat_locations[sub_loc_name] = dict(sub_loc_info)
                     self.flat_locations[sub_loc_name]["zone"] = zone_name
                     self.flat_locations[sub_loc_name]["zone_desc"] = zone_info.get("description", "")
+                                 
+                    self.static_location_names.add(sub_loc_name)
+
+                                                        
+                                            
+                                                        
+                      
+                          
+                                
+                                    
+            dynamic_map = load_dynamic_map()
+            for loc_name, loc_info in dynamic_map.items():
+                         
+                                           
+                                         
+                if loc_name in self.flat_locations:
+                    continue
+
+                self.flat_locations[loc_name] = {
+                    "zone": loc_info.get("zone", "动态发现区域"),
+                    "zone_desc": loc_info.get(
+                        "zone_desc",
+                        "这是一个尚未被正式地图收录、但已被你们踏足过的新地点。"
+                    ),
+                    "lore": loc_info.get("lore", "暂无详细记录。"),
+                    "related_characters": loc_info.get("related_characters", []),
+                    "keywords": loc_info.get("keywords", [loc_name])
+                }
+
             print("🗺️ [空间感知]: 地图系统已成功加载并拍平索引。")
         except Exception as e:
             print(f"⚠️ [空间感知]: 地图文件读取失败: {e}")
+
+    def register_dynamic_location(self, location_name, lore="这是一个新发现的地点。", zone="动态发现区域"):
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        if not location_name or not isinstance(location_name, str):
+            return
+
+        location_name = location_name.strip()
+        if not location_name:
+            return
+
+                                              
+                                                  
+                                       
+        if location_name in self.static_location_names:
+            return
+
+        dynamic_map = load_dynamic_map()
+
+                            
+        if location_name not in dynamic_map:
+            dynamic_map[location_name] = {
+                "zone": zone,
+                "zone_desc": "这是一个尚未被正式地图收录、但已被你们踏足过的新地点。",
+                "lore": lore,
+                "related_characters": ["Romasha"],
+                "keywords": [location_name]
+            }
+            save_dynamic_map(dynamic_map)
+
+                                   
+        self.update_dynamic_location(
+            location_name=location_name,
+            lore=lore,
+            zone=zone,
+            related_characters=["Romasha"],
+            keywords=[location_name]
+        )
+
+    def update_dynamic_location(
+        self,
+        location_name,
+        lore=None,
+        zone=None,
+        zone_desc=None,
+        related_characters=None,
+        keywords=None
+    ):
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        if not location_name or not isinstance(location_name, str):
+            return
+
+        location_name = location_name.strip()
+        if not location_name:
+            return
+
+                 
+                                        
+                             
+        if location_name in self.static_location_names:
+            return
+
+        dynamic_map = load_dynamic_map()
+
+                                 
+        if location_name not in dynamic_map:
+            dynamic_map[location_name] = {
+                "zone": zone or "动态发现区域",
+                "zone_desc": zone_desc or "这是一个尚未被正式地图收录、但已被你们踏足过的新地点。",
+                "lore": lore or "这是一个新发现的地点。",
+                "related_characters": related_characters or ["Romasha"],
+                "keywords": keywords or [location_name]
+            }
+        else:
+            old_info = dynamic_map[location_name]
+
+                                                        
+                                   
+                                                        
+            old_lore = old_info.get("lore", "")
+            if isinstance(lore, str) and lore.strip():
+                new_lore = lore.strip()
+
+                       
+                                  
+                                
+                                                      
+                if not old_lore:
+                    old_info["lore"] = new_lore
+                elif len(new_lore) > len(old_lore):
+                    old_info["lore"] = new_lore
+                elif new_lore not in old_lore and len(new_lore) >= 12:
+                    old_info["lore"] = f"{old_lore} {new_lore}".strip()
+
+                                                        
+                                
+                                                        
+            if isinstance(zone, str) and zone.strip():
+                if not old_info.get("zone"):
+                    old_info["zone"] = zone.strip()
+
+                                                        
+                                               
+                                                        
+            if isinstance(zone_desc, str) and zone_desc.strip():
+                old_zone_desc = old_info.get("zone_desc", "")
+                default_zone_desc = "这是一个尚未被正式地图收录、但已被你们踏足过的新地点。"
+                if not old_zone_desc or old_zone_desc == default_zone_desc:
+                    old_info["zone_desc"] = zone_desc.strip()
+                elif len(zone_desc.strip()) > len(old_zone_desc):
+                    old_info["zone_desc"] = zone_desc.strip()
+
+                                                        
+                                        
+                                                        
+            old_related = old_info.get("related_characters", [])
+            if not isinstance(old_related, list):
+                old_related = []
+
+            if isinstance(related_characters, list):
+                merged_related = list(dict.fromkeys(
+                    [str(x).strip() for x in old_related if str(x).strip()] +
+                    [str(x).strip() for x in related_characters if str(x).strip()]
+                ))
+                old_info["related_characters"] = merged_related
+
+                                                        
+                              
+                                                        
+            old_keywords = old_info.get("keywords", [])
+            if not isinstance(old_keywords, list):
+                old_keywords = []
+
+            if isinstance(keywords, list):
+                merged_keywords = list(dict.fromkeys(
+                    [str(x).strip() for x in old_keywords if str(x).strip()] +
+                    [str(x).strip() for x in keywords if str(x).strip()]
+                ))
+                old_info["keywords"] = merged_keywords
+
+            dynamic_map[location_name] = old_info
+
+              
+        save_dynamic_map(dynamic_map)
+
+                                                     
+        fresh_info = dynamic_map[location_name]
+        self.flat_locations[location_name] = {
+            "zone": fresh_info.get("zone", zone or "动态发现区域"),
+            "zone_desc": fresh_info.get(
+                "zone_desc",
+                zone_desc or "这是一个尚未被正式地图收录、但已被你们踏足过的新地点。"
+            ),
+            "lore": fresh_info.get("lore", lore or "这是一个新发现的地点。"),
+            "related_characters": fresh_info.get("related_characters", related_characters or ["Romasha"]),
+            "keywords": fresh_info.get("keywords", keywords or [location_name])
+        }
 
     def get_current_location_lore(self, location_name, current_chapter=1):
 
         loc = self.flat_locations.get(location_name)
         if not loc:
-            return f"【未知区域 - {location_name}】：似乎不在基地的常规地图记录中。"
+                     
+                                                      
+                                         
+                                           
+                                 
+            return (
+                f"【当前位置：{location_name}】"
+                f"这是一处尚未录入基地常规地图档案的地点，但你与玩家此刻确实正身处这里。"
+                f"请把它视为真实存在的当前场景，并根据上下文自然理解其氛围与用途。"
+            )
 
                                             
         required_chapter = REGION_UNLOCK_CHAPTER.get(location_name)
@@ -148,23 +438,49 @@ class MapManager:
 
         return info
 
-
     def get_available_locations(self, current_chapter=1):
 
-        if not self.map_data:
-            return "无可用地点"
 
-        lines = []
+
+
+
+
+
+
+
+        if not self.map_data and not self.flat_locations:
+            return "无可用地点"
+        region_map = {}
+
+                                                    
+                          
+                                                    
         for region, data in self.map_data.items():
                                            
             req_chapter = REGION_UNLOCK_CHAPTER.get(region, 1)
             if current_chapter < req_chapter:
                 continue
-
-            locs = list(data.get("sub_locations", {}).keys())
-                          
-            lines.append(f"- {region}: {', '.join(locs)}")
-        return "\n".join(lines)
+            region_map.setdefault(region, [])
+            region_map[region].extend(list(data.get("sub_locations", {}).keys()))
+                                                    
+                    
+                                                    
+             
+                                              
+                                           
+        for loc_name, loc_info in self.flat_locations.items():
+            zone = loc_info.get("zone", "动态发现区域")
+                                            
+            if zone not in self.map_data:
+                region_map.setdefault(zone, [])
+                if loc_name not in region_map[zone]:
+                    region_map[zone].append(loc_name)
+        lines = []
+        for region, locs in region_map.items():
+            if locs:
+                              
+                lines.append(f"- {region}: {', '.join(locs)}")
+        return "\n".join(lines) if lines else "无可用地点"
 
        
 map_instance = MapManager()

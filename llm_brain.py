@@ -113,6 +113,56 @@ def save_config():
     except Exception as e:
         print(f"⚠️ 保存配置失败: {e}")
 
+def extract_forced_location_from_user_text(text):
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    if not isinstance(text, str):
+        return None
+
+    raw = text.strip()
+    if not raw:
+        return None
+
+                              
+    patterns = [
+        r'带她去了(.+?)(?:[，。！？；,.!?）)\]】\s]|$)',
+        r'带着她去了(.+?)(?:[，。！？；,.!?）)\]】\s]|$)',
+        r'带你去了(.+?)(?:[，。！？；,.!?）)\]】\s]|$)',
+        r'我带她前往了(.+?)(?:[，。！？；,.!?\s]|$)',
+        r'我带她到了(.+?)(?:[，。！？；,.!?\s]|$)',
+        r'我们去了(.+?)(?:[，。！？；,.!?）)\]】\s]|$)',
+        r'我们到了(.+?)(?:[，。！？；,.!?）)\]】\s]|$)',
+        r'来到了(.+?)(?:[，。！？；,.!?）)\]】\s]|$)',
+    ]
+
+    for pattern in patterns:
+        m = re.search(pattern, raw)
+        if m:
+            loc = m.group(1).strip()
+
+                             
+            loc = loc.strip("“”\"'（）()[]【】<>《》 ")
+
+                                    
+            if loc and len(loc) <= 20:
+                return loc
+
+    return None
+
 
       
 config = load_config()
@@ -280,6 +330,29 @@ recent_chat_meta = recent_chat_bundle.get("meta", {})
 def stream_chat_with_romasha(user_text, interrupted_text, thread_obj):
     global chat_history
 
+                                                
+                           
+                                                
+         
+                                      
+                              
+                         
+                              
+    forced_loc = extract_forced_location_from_user_text(user_text)
+    if forced_loc:
+                               
+        if forced_loc not in map_manager.map_instance.flat_locations:
+            map_manager.map_instance.register_dynamic_location(
+                forced_loc,
+                lore=f"{forced_loc}：这是玩家在互动中主动带 Romasha 抵达的新地点，目前仍缺少正式地图档案。"
+            )
+            print(f"📍 [动态地点建档]: 已自动为新地点【{forced_loc}】建立地图档案。")
+
+                      
+        config["current_location"] = forced_loc
+        save_config()
+        print(f"🚶‍♀️ [你主导的移动]: 你已带她前往【{forced_loc}】，当前位置已同步更新。")
+
                   
     current_intimacy = config.get('intimacy', 0)
 
@@ -402,7 +475,18 @@ def stream_chat_with_romasha(user_text, interrupted_text, thread_obj):
     available_locs = map_manager.map_instance.get_available_locations(current_chapter)
     dynamic_system_prompt += f"【你的当前空间与坐标】\n"
     dynamic_system_prompt += f"你现在正身处：{loc_lore}\n"
-    dynamic_system_prompt += f"⚠️ 自主移动规则：如果你在对话中因为某些原因（如洗澡、工作、逃避、或者想带玩家去某地）决定离开当前地点，请【必须】在回复开头输出 `[move_to_地点名]` 标签。如果不移动，【绝对不要】输出此标签！\n"
+                                                                                                                                          
+    dynamic_system_prompt += (
+        "【地点变化硬规则】\n"
+        "1. 如果你自己决定离开当前地点，前往别处（例如去医疗室、回房间、去洗澡），"
+        "你必须在回复开头输出 `[move_to_地点名]` 标签。\n"
+        "2. 如果玩家的话已经明确表示“你们已经抵达了某地”，"
+        "例如“我带她去了乾星”“我们到了乾星”“现在在乾星”，"
+        "那么你也必须在回复开头输出 `[move_to_地点名]`。\n"
+        "3. 即使这个地点不在当前已知坐标库中，也必须照样输出 `[move_to_地点名]`，"
+        "并把它视为一个真实存在的新发现地点。\n"
+        "4. 如果地点没有发生实际变化时，【绝对不要】输出此标签！\n"
+    )
     dynamic_system_prompt += f"当前世界可前往的已知坐标库如下：\n{available_locs}\n\n"
 
     dynamic_system_prompt += f"【你的当前物理状态】\n"
