@@ -157,6 +157,21 @@ def save_dynamic_map(data):
         print(f"⚠️ [空间感知]: 保存动态地图失败: {e}")
 
 
+def clear_dynamic_map():
+
+
+
+
+    _ensure_world_data_dir()
+
+    try:
+        if os.path.exists(DYNAMIC_MAP_FILE):
+            os.remove(DYNAMIC_MAP_FILE)
+            print("🗺️ [空间感知]: 动态地图记忆已清空，世界坐标回归静态初始状态。")
+    except Exception as e:
+        print(f"⚠️ [空间感知]: 清空动态地图失败: {e}")
+
+
 class MapManager:
     def __init__(self):
         self.map_data = {}
@@ -481,6 +496,35 @@ class MapManager:
                               
                 lines.append(f"- {region}: {', '.join(locs)}")
         return "\n".join(lines) if lines else "无可用地点"
+
+    def reload_dynamic_locations(self):
+
+
+
+
+
+
+                                             
+        to_delete = [name for name in self.flat_locations if name not in self.static_location_names]
+        for name in to_delete:
+            self.flat_locations.pop(name, None)
+
+                                      
+        dynamic_map = load_dynamic_map()
+        for loc_name, loc_info in dynamic_map.items():
+            if loc_name in self.static_location_names:
+                continue
+
+            self.flat_locations[loc_name] = {
+                "zone": loc_info.get("zone", "动态发现区域"),
+                "zone_desc": loc_info.get(
+                    "zone_desc",
+                    "这是一个尚未被正式地图收录、但已被你们踏足过的新地点。"
+                ),
+                "lore": loc_info.get("lore", "暂无详细记录。"),
+                "related_characters": loc_info.get("related_characters", []),
+                "keywords": loc_info.get("keywords", [loc_name])
+            }
 
        
 map_instance = MapManager()

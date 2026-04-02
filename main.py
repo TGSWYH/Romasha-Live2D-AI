@@ -748,6 +748,9 @@ class BrainWorker(QThread):
                     story_manager.clear_summary()
                                                 
                     lorebook_manager.clear_dynamic_lore()
+                                             
+                    map_manager.clear_dynamic_map()
+                    map_manager.map_instance.reload_dynamic_locations()
                                                 
                     story_manager.archive_novel_log()
                                                             
