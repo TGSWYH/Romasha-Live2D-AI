@@ -170,6 +170,173 @@
         window.bubbleTimeout = null;
 
         
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        let bubbleManualKeepAlive = false;
+        let bubbleAudioPlaying = false;
+        let bubbleLastHtml = "";
+        let bubbleLastDisplayTime = 0;
+
+        
+        
+        let isDragging = false;
+
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        const LOOK_TRACK_CONFIG = {
+            
+            HEAD_ANCHOR_X_RATIO: 0.45, 
+            HEAD_ANCHOR_Y_RATIO: 0.27, 
+
+            
+            OFFSET_BLEND_X: 1.0,
+            OFFSET_BLEND_Y: 1.0,
+
+            
+            SMOOTHING: 0.28,
+
+            
+            MAX_OFFSET_X_RATIO: 0.35,
+            MAX_OFFSET_Y_RATIO: 0.28
+        };
+
+        
+        let latestGlobalMouse = {
+            x: window.innerWidth / 2,
+            y: window.innerHeight / 2
+        };
+
+        
+        let smoothedLookTarget = null;
+
+        
+
+
+
+
+
+        function getModelBoundsSafe() {
+            if (!window.romashaModel) return null;
+            return window.romashaModel.getBounds();
+        }
+
+        
+
+
+
+
+        function getHeadAnchor(bounds) {
+            return {
+                x: bounds.x + bounds.width * LOOK_TRACK_CONFIG.HEAD_ANCHOR_X_RATIO,
+                y: bounds.y + bounds.height * LOOK_TRACK_CONFIG.HEAD_ANCHOR_Y_RATIO
+            };
+        }
+
+        
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        function getCorrectedLookTarget(mouseX, mouseY) {
+            const bounds = getModelBoundsSafe();
+            if (!bounds) {
+                return { x: mouseX, y: mouseY };
+            }
+
+            const modelCenterX = bounds.x + bounds.width / 2;
+            const modelCenterY = bounds.y + bounds.height / 2;
+
+            const headAnchor = getHeadAnchor(bounds);
+
+            
+            const offsetX = (modelCenterX - headAnchor.x) * LOOK_TRACK_CONFIG.OFFSET_BLEND_X;
+            const offsetY = (modelCenterY - headAnchor.y) * LOOK_TRACK_CONFIG.OFFSET_BLEND_Y;
+
+            let correctedX = mouseX + offsetX;
+            let correctedY = mouseY + offsetY;
+
+            
+            let dx = correctedX - modelCenterX;
+            let dy = correctedY - modelCenterY;
+
+            const maxOffsetX = bounds.width * LOOK_TRACK_CONFIG.MAX_OFFSET_X_RATIO;
+            const maxOffsetY = bounds.height * LOOK_TRACK_CONFIG.MAX_OFFSET_Y_RATIO;
+
+            dx = Math.max(-maxOffsetX, Math.min(maxOffsetX, dx));
+            dy = Math.max(-maxOffsetY, Math.min(maxOffsetY, dy));
+
+            correctedX = modelCenterX + dx;
+            correctedY = modelCenterY + dy;
+
+            return {
+                x: correctedX,
+                y: correctedY
+            };
+        }
+
+        
+
+
+
+
+
+        function updateLookTrackingFrame() {
+            if (!trackingEnabled || isDragging || !window.romashaModel) return;
+
+            const corrected = getCorrectedLookTarget(latestGlobalMouse.x, latestGlobalMouse.y);
+
+            if (!smoothedLookTarget) {
+                smoothedLookTarget = { x: corrected.x, y: corrected.y };
+            } else {
+                smoothedLookTarget.x += (corrected.x - smoothedLookTarget.x) * LOOK_TRACK_CONFIG.SMOOTHING;
+                smoothedLookTarget.y += (corrected.y - smoothedLookTarget.y) * LOOK_TRACK_CONFIG.SMOOTHING;
+            }
+
+            window.romashaModel.focus(smoothedLookTarget.x, smoothedLookTarget.y);
+        }
+
+        
         let touchEnabled = true;      
         let touchBusyLocked = false;  
         let lastTouchBusyHintTime = 0; 
@@ -208,6 +375,13 @@
             app.ticker.add(() => {
                 let bounds = window.romashaModel.getBounds();
                 let centerX = bounds.x + bounds.width / 2;
+
+                
+                
+                
+                
+                
+                updateLookTrackingFrame();
 
                 
                 let targetBubbleY = bounds.y + 30;
@@ -265,15 +439,28 @@
 
             
             
+            
+            
+            
+            
+            
+            
             window.updateGlobalMouse = function(x, y) {
-                if (trackingEnabled && !isDragging && window.romashaModel) {
-                    window.romashaModel.focus(x, y);
-                }
+                latestGlobalMouse.x = x;
+                latestGlobalMouse.y = y;
             };
 
             window.toggleTracking = function(state) {
                 trackingEnabled = state;
-                if (!state) model.internalModel.focusController.focus(0, 0);
+                if (!state) {
+                    
+                    smoothedLookTarget = null;
+
+                    
+                    if (model.internalModel && model.internalModel.focusController) {
+                        model.internalModel.focusController.focus(0, 0);
+                    }
+                }
             };
 
             
@@ -318,36 +505,117 @@
                 try {
                     if (!audioCtx) {
                         
+                        
+                        
                         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                         analyser = audioCtx.createAnalyser();
                         analyser.fftSize = 256;
+
                         let source = audioCtx.createMediaElementSource(audioElement);
                         source.connect(analyser);
                         analyser.connect(audioCtx.destination);
+
                         dataArray = new Uint8Array(analyser.frequencyBinCount);
                     }
 
-                    audioElement.src = "data:audio/wav;base64," + audioBase64;
+                    
+                    
+                    
+                    
+                    
+                    
+                    clearBubbleHideTimer();
+                    bubbleAudioPlaying = false;
 
                     
+                    audioElement.src = "data:audio/wav;base64," + audioBase64;
+                    
+                    bubbleAudioPlaying = true;
+                    updateBubbleVisibility(false);
+
+                    
+                    
+                    
+                    
+                    
+                    
+                    audioElement.onplay = function() {
+                        bubbleAudioPlaying = true;
+                        updateBubbleVisibility(false);
+                    };
+
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
                     audioElement.onended = function() {
+                        bubbleAudioPlaying = false;
+
+                        
+                        setTimeout(() => {
+                            updateBubbleVisibility(true);
+                        }, 250);
+
+                        
                         document.title = "EVENT:AUDIO_END";
                     };
 
+                    
+                    
+                    
+                    
+                    
+                    audioElement.onerror = function() {
+                        bubbleAudioPlaying = false;
+                        updateBubbleVisibility(false);
+                    };
+
+                    
                     audioElement.play().then(() => {
-                        if (audioCtx.state === 'suspended') audioCtx.resume();
+                        if (audioCtx.state === 'suspended') {
+                            audioCtx.resume();
+                        }
+                    }).catch(() => {
+                        
+                        bubbleAudioPlaying = false;
+                        updateBubbleVisibility(false);
                     });
+
                 } catch (e) {
+                    
+                    bubbleAudioPlaying = false;
+                    updateBubbleVisibility(false);
                     console.log("声音传达似乎受到了阻碍...");
                 }
             };
 
             
+            
             window.stopRomashaVoice = function() {
-                if (audioElement && !audioElement.paused) {
+                if (audioElement) {
+                    
                     audioElement.pause();
                     audioElement.currentTime = 0;
                 }
+
+                
+                
+                
+                
+                
+                bubbleAudioPlaying = false;
+
+                
+                
+                
+                
+                updateBubbleVisibility(false);
             };
 
             
@@ -386,11 +654,99 @@
             });
 
             
-            window.showBubble = function(text, keepAlive = false) {
+
+
+
+
+
+
+            function clearBubbleHideTimer() {
                 if (window.bubbleTimeout) {
                     clearTimeout(window.bubbleTimeout);
                     window.bubbleTimeout = null;
                 }
+            }
+
+            
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            function updateBubbleVisibility(immediate = false) {
+                
+                clearBubbleHideTimer();
+
+                
+                if (!bubbleLastHtml || bubbleLastHtml.trim() === "") {
+                    return;
+                }
+
+                
+                if (bubbleManualKeepAlive) {
+                    return;
+                }
+
+                
+                if (bubbleAudioPlaying) {
+                    return;
+                }
+
+                
+                
+                
+                
+
+                if (immediate) {
+                    
+                    
+                    
+                    chatBubble.style.opacity = 0;
+                } else {
+                    
+                    
+                    const delay = Math.max(0, bubbleLastDisplayTime || 0);
+                    window.bubbleTimeout = setTimeout(() => {
+                        
+                        if (!bubbleManualKeepAlive && !bubbleAudioPlaying) {
+                            chatBubble.style.opacity = 0;
+                        }
+                    }, delay);
+                }
+            }
+
+            
+            window.showBubble = function(text, keepAlive = false) {
+                
+                
+                
+                
+                
+                
+
+                
+                bubbleLastHtml = text;
+
+                
+                bubbleManualKeepAlive = !!keepAlive;
+
                 
                 chatBubble.innerHTML = `<div class="scroll-wrapper">${text}</div>`;
                 chatBubble.style.opacity = 1;
@@ -402,12 +758,17 @@
                 }
 
                 
-                if (!keepAlive) {
-                    let displayTime = Math.max(5500, text.replace(/<[^>]+>/g, '').length * 120);
-                    window.bubbleTimeout = setTimeout(() => {
-                        chatBubble.style.opacity = 0;
-                    }, displayTime);
-                }
+                
+                bubbleLastDisplayTime = Math.max(
+                    5500,
+                    text.replace(/<[^>]+>/g, '').length * 120
+                );
+
+                
+                
+                
+                
+                updateBubbleVisibility(false);
             };
 
             window.showLightHint = function(text, duration = 1200) {
@@ -430,7 +791,7 @@
             };
 
             
-            let isDragging = false;
+            
             let downX = 0, downY = 0;
             let startModelX = 0, startModelY = 0;
             let downTime = 0;
