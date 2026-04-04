@@ -16,6 +16,7 @@ import motion_manager
 import story_manager               
 import lorebook_manager                  
 import map_manager                
+import relationship_manager
 
                               
 if getattr(sys, 'frozen', False):
@@ -30,9 +31,9 @@ CONFIG_FILE = os.path.join(app_dir, "config.json")
 def load_config():
     default_config = {
         "api_type": "openai",                               
-        "api_key": "你的密钥",
-        "base_url": "你的接口地址",
-        "target_model": "你的模型名",
+        "api_key": "sk-BOIfaNR9CVuERB57c",
+        "base_url": "https://api.wataruu.me/v1",
+        "target_model": "gpt-5.4",
         "intimacy": 0,                
         "player_name": "",                            
         "current_location": "罗玛莎的房间门口",              
@@ -489,6 +490,49 @@ def stream_chat_with_romasha(user_text, interrupted_text, thread_obj):
     )
     dynamic_system_prompt += f"当前世界可前往的已知坐标库如下：\n{available_locs}\n\n"
 
+                                                                  
+                    
+                                                                  
+                                  
+                            
+                                  
+                                                                  
+    relationship_block = relationship_manager.get_relationship_prompt_block()
+    dynamic_system_prompt += f"{relationship_block}\n\n"
+
+                                                                  
+                      
+                                                                  
+                   
+                               
+                                                                  
+    dynamic_system_prompt += (
+        "【亲密行为解释优先级规则】\n"
+        "1. 你必须先判断：你们当前的关系气氛、历史上曾达到的亲密程度、已经发生过的身体接触事实、你此刻的情绪状态、你现在是否想拉开距离、以及你当前有没有特别不想被碰的部位，然后再判断这次接触是否越界。\n"
+        "2. 如果你们仍然处于陌生、低信任、强戒备阶段，那么亲密触碰应优先理解为冒犯、危险或令人不安的靠近。\n"
+        "3. 如果你们已经是恋人、伴侣、已婚，或者已经发生过明确的深度亲密接触，那么你应先判断这是否属于彼此已经熟悉的亲密互动，而不是直接按陌生人的侵犯来理解。\n"
+        "4. 如果你当前正处于受伤、别扭、冷淡、想拉开距离的状态，这会让你变得更敏感、更容易轻拒、回避或需要安抚，但这并不代表你失去既往记忆，也不代表你们重新变回陌生人。\n"
+        "5. 如果你现在特别想保持距离，那么你应更倾向于轻拒、躲开、要求停下、要求先安抚、要求慢一点，而不是假装过去发生过的关系事实根本不存在。\n"
+        "6. 如果某个部位被系统标记为你当前短期不希望被碰，那么当玩家碰到那里时，你应优先表达不适、轻拒、制止或拉开距离，但你的表达方式仍应与你们真实的关系阶段保持一致。\n"
+        "7. 在高亲密、已确认关系的前提下，如果对方的行为是温柔、克制、珍惜、带确认和照顾意味的，那么默认不应被你机械理解成侵犯。\n"
+        "8. 你可以害羞、轻推、脸红、要求慢一点、要求更温柔、表达紧张或羞耻，但不能无视既往事实，长期退回到初识式拒绝。\n"
+        "9. 只有在对方粗暴、羞辱、突然强压、明显无视你的感受，或者触碰了你当前短期明确不想被碰的区域时，你才应升级为更明显的抗拒和防卫动作。\n\n"
+    )
+
+                                                                  
+                    
+                                                                  
+                                       
+                                                                  
+    dynamic_system_prompt += (
+        "【动作选择一致性规则】\n"
+        "1. 陌生阶段对敏感触碰：优先 act_angry / act_poster / act_donbiki。\n"
+        "2. 高亲密、恋人、伴侣、已婚阶段，对温柔且熟悉的亲密接触：优先 act_hatujo / act_smallgikuri / mood_talk_alc / mood_wait_haji，"
+        "不应再长期优先使用 act_poster。\n"
+        "3. 只有在明显粗暴、羞辱、命令式互动下，才重新提高 act_angry / act_poster 的使用频率。\n"
+        "4. 如果当前存在“暂时不希望被碰的区域”或“当前明显想拉开距离”的状态，那么即使在高亲密关系下，你也可以提高轻拒、回避、收紧、防备类动作的使用频率，但仍应保持与既往关系阶段一致，不要直接退回陌生人式反应。\n\n"
+    )
+
     dynamic_system_prompt += f"【你的当前物理状态】\n"
     dynamic_system_prompt += f"- 现实时间：{current_time_str}\n"
     dynamic_system_prompt += f"- 你当前正穿着：{current_outfit}\n"
@@ -645,6 +689,14 @@ def stream_chat_with_romasha(user_text, interrupted_text, thread_obj):
                             
         story_manager.save_recent_chat_history(chat_history, max_items=16)
 
+                                                                      
+                                 
+                                                                      
+                              
+                                          
+                                                                      
+        relationship_manager.update_relationship_from_dialogue_background(chat_history[-6:], config)
+
                                                     
                              
                                                     
@@ -788,8 +840,16 @@ def get_story_prompt(participation_level, last_choice, current_time, current_out
     base_persona = persona.get_romasha_prompt(use_cosyvoice)
     base_persona = base_persona.replace("你现在的身份是 Romasha (罗玛莎)",
                                         "【角色性格基底参考】：以下是女主角罗玛莎的性格设定")
-    base_persona = base_persona.replace("你的所有回复【绝对禁止】使用换行符",
-                                        "（本条规则在视觉小说推演模式下作废，你可以自由分段）")
+    base_persona = re.sub(
+        r'🚫\s*绝对排版禁令（拒绝换行）：.*?(?=\n\d+\.)',
+        (
+            "【视觉小说排版规则】：在剧情推演模式下，你必须根据叙事节奏自然分段。"
+            "当发生场景切换、动作段落结束、情绪明显转折、或人物对话来回切换时，应当适度换段。"
+            "但不要每一句话都单独成段，也不要过度频繁换行。"
+        ),
+        base_persona,
+        flags=re.DOTALL
+    )
 
                           
     if use_cosyvoice:
@@ -804,6 +864,7 @@ def get_story_prompt(participation_level, last_choice, current_time, current_out
     scan_text = (recent_summary or "") + " " + last_choice
     triggered_lore = lorebook_manager.scan_and_get_lore(scan_text, current_chapter)       
 
+    relationship_block = relationship_manager.get_relationship_story_prompt_block()
     prompt = f"""【🚨 极度重要：引擎视角与排版转换】
 你现在是《Princess Synergy》的底层视觉小说推演引擎（旁白/作者）。
 
@@ -838,6 +899,8 @@ def get_story_prompt(participation_level, last_choice, current_time, current_out
 {available_locs}
 ⚠️ 空间移动规则：如果剧情发展导致罗玛莎和玩家离开了当前地点，【必须】在回复的动作标签中输出 `[move_to_地点名]`。如果不移动，【绝对不要】输出此标签！
 
+{relationship_block}
+
 【当前物理与记忆状态】：
 - 前情提要：{recent_summary if recent_summary else "暂无"}
 - 刚刚发生的日常互动（作为剧情衔接参考）：
@@ -871,7 +934,7 @@ def get_story_prompt(participation_level, last_choice, current_time, current_out
 【标准输出示例】（必须模仿这种包含动作和双方台词的第三人称格式）：
 走廊的灯带像冷白的水。罗玛莎没有再等{player_name}的回应，[move_to_医疗室]她慢慢朝医疗室走[act_smallgikuri]，指尖按着发烫的装置，疼得发麻。
 {player_name}快步跟了上去，低声道：「我陪你过去，别一个人硬撑。」
-[mood_talk_ero]罗玛莎脚步微顿，抬起眼看向{player_name}，[say: "那个……你真的还愿意陪着我吗？"]
+[mood_talk_ero]罗玛莎脚步微顿，抬起眼看向{player_name}，[say: "那个，你真的还愿意陪着我吗？"]
 她的声音轻得几乎散在空气里，却还是没有停下向前的步伐。
 
 <options>
@@ -1020,6 +1083,21 @@ def stream_story_with_romasha(level, user_choice_text, thread_obj):
             update_story_summary_background(messages_to_summarize)
                                        
             lorebook_manager.update_lorebook_background(messages_to_summarize, config)
+
+                                                                          
+                                   
+                                                                          
+                                   
+                                 
+                            
+                                                                          
+            relationship_manager.update_relationship_from_dialogue_background(
+                [
+                    {"role": "user", "content": user_choice_text or "继续推进剧情"},
+                    {"role": "assistant", "content": story_content}
+                ],
+                config
+            )
 
                                                    
             memory_manager.add_memory(query_text, story_content, current_intimacy, is_story_mode=True)

@@ -70,6 +70,7 @@ import outfit_manager
 import story_manager
 import lorebook_manager
 import map_manager
+import relationship_manager
 
 
                                             
@@ -751,6 +752,8 @@ class BrainWorker(QThread):
                                              
                     map_manager.clear_dynamic_map()
                     map_manager.map_instance.reload_dynamic_locations()
+                                                     
+                    relationship_manager.clear_relationship_state()
                                                 
                     story_manager.archive_novel_log()
                                                             
@@ -852,6 +855,95 @@ class TTSWorker(QThread):
             print(f"   (🛠️ 隐秘线索: 思绪转译受阻，已回退至熟悉的语言 - {str(e)[:50]})")
             return text
 
+    def infer_cosy_instruct_from_tags(self, raw_text):
+
+
+
+
+
+
+
+
+        text_lower = raw_text.lower()
+
+                                       
+                        
+                                       
+        mood_base = {
+            "mood_talk_alc": "害羞娇柔",
+            "mood_talk_ero": "委屈含泪",
+            "mood_talk": "温柔轻软",
+            "mood_neutral": "平静轻柔",
+            "mood_wait": "安静压低声音",
+            "mood_wait_haji": "小声迟疑嘀咕",
+        }
+                                       
+                          
+                                       
+        act_overlay = {
+                     
+            "act_amazing": "惊讶慌乱",
+            "act_smallamazing": "轻微惊讶",
+            "act_guruguru": "极度羞涩混乱",
+            "act_trouble": "不知所措",
+            "act_smallgikuri": "心虚慌张",
+            "act_question": "疑惑试探",
+                          
+            "act_angry": "羞愤抗拒",
+            "act_smallangry": "小声抗议",
+            "act_smallangryb": "压抑不满",
+            "act_donbiki": "嫌弃退缩",
+            "act_poster": "坚决拒绝",
+            "act_chui": "轻声制止",
+                     
+            "act_sad": "委屈难过",
+            "act_relief": "放松轻叹",
+            "act_iyaiya": "无奈羞耻",
+                          
+            "act_hatujo": "极度羞涩喘息",
+            "act_skirt": "受惊娇羞",
+            "act_skirt_bust": "胸口被碰到后慌乱羞涩",
+            "act_skirt_hip": "臀部被碰到后慌乱羞涩",
+            "act_taol_fall": "浴巾滑落后极度慌乱羞耻",
+            "act_doya": "脸红得意",
+            "act_smalldoya": "小小得意可爱",
+                     
+            "act_smile": "开心温柔",
+            "act_smallsmile": "轻柔微笑",
+            "act_troublesmile": "尴尬赔笑",
+            "act_victory": "得意轻快",
+                
+            "act_device": "轻声走神",
+            "act_neutral": "平静轻柔",
+            "act_talk": "自然温柔",
+        }
+        mood_part = None
+        act_part = None
+                   
+        for k, v in mood_base.items():
+            if f"[{k}]" in text_lower:
+                mood_part = v
+                break
+                 
+        for k, v in act_overlay.items():
+            if f"[{k}]" in text_lower:
+                act_part = v
+                break
+                                       
+                 
+                                       
+        if act_part and mood_part:
+                                
+            if act_part in mood_part or mood_part in act_part:
+                return f"{act_part}的少女音"
+            return f"{act_part}且{mood_part}的少女音"
+        if act_part:
+            return f"{act_part}的少女音"
+        if mood_part:
+            return f"{mood_part}的少女音"
+                
+        return "温柔轻软的少女音"
+
     def run(self):
         while self.running:
             try:
@@ -876,6 +968,7 @@ class TTSWorker(QThread):
                 continue
 
                                                    
+                                           
             instruct_text = ""
                                                
             match = re.match(r'^(.*?)<\|endofprompt\|>(.*)$', clean_text, re.DOTALL)
@@ -886,6 +979,16 @@ class TTSWorker(QThread):
                 clean_text = match.group(2).strip()                                
                                    
                 clean_text = clean_text.replace("<|endofprompt|>", "")
+                                        
+                if len(instruct_text) < 2 and llm_brain.config.get("tts_engine", "cosyvoice") == "cosyvoice":
+                    instruct_text = self.infer_cosy_instruct_from_tags(text)
+                    print(f"🎭 [CosyVoice自动修正]: 模型前缀异常，已回退为动作推断 -> {instruct_text}")
+            else:
+                                                              
+                if llm_brain.config.get("tts_engine", "cosyvoice") == "cosyvoice":
+                    instruct_text = self.infer_cosy_instruct_from_tags(text)
+                    print(
+                        f"🎭 [CosyVoice自动补偿]: 检测到缺失 <|endofprompt|>，已根据动作标签推断语气 -> {instruct_text}")
 
                                                    
             if llm_brain.config.get("tts_translate_to_ja", False) and clean_text:
@@ -1441,6 +1544,157 @@ class RomashaDesktop(QMainWindow):
         busy_str = "true" if self.touch_temp_locked else "false"
         self.browser.page().runJavaScript(f"window.toggleTouch({enabled_str});")
         self.browser.page().runJavaScript(f"window.toggleTouchBusy({busy_str});")
+
+    def get_touch_prompt(self, part):
+
+
+
+
+
+
+
+
+
+
+        rel = relationship_manager.load_relationship_state()
+                                                                  
+                                                
+                                                                  
+        stage = rel.get("current_relationship_stage", "stranger")
+        highest_stage = rel.get("highest_relationship_stage", "stranger")
+                  
+        physical = rel.get("physical_intimacy_stage", 0)
+                 
+        accepted = set(rel.get("accepted_touch_zones", []))
+                 
+        attitude = rel.get("current_attitude", "normal")
+        temp_distance = rel.get("temporary_distance_level", 0)
+        blocked = set(rel.get("temporary_blocked_touch_zones", []))
+              
+        first_night = rel.get("first_night_completed", False)
+        current_intimacy = llm_brain.config.get("intimacy", 0)
+
+                                       
+                         
+                                       
+        default_map = {
+            "head": "*你轻轻摸了摸她的头*",
+            "face": "*你轻轻碰了碰她的脸颊*",
+            "hand_right": "*你牵起了她的右手*",
+            "hand_left": "*你握住了她的左手*",
+            "belly": "*你轻轻碰到了她的腰侧*",
+            "leg": "*你碰到了她的腿*",
+            "hip": "*你碰到了她的臀侧*",
+            "bust": "*你碰到了她胸前敏感的位置*",
+            "crotch": "*你触碰到了她极其私密的区域*",
+            "unknown": "*你轻轻碰了碰她*"
+        }
+
+                                                                  
+                       
+                              
+                                 
+                                                                  
+        if part in blocked:
+            if (
+                    stage in ["lovers", "bonded", "married"]
+                    or highest_stage in ["bonded", "married"]
+                    or current_intimacy >= 80
+            ):
+                if part == "bust":
+                    return "*你的动作靠近了她胸前敏感的位置，而她现在显然不太想那里被碰*"
+                if part == "hip":
+                    return "*你的手碰到了她腰臀附近，而她现在似乎不太愿意你继续在那里停留*"
+                if part == "crotch":
+                    return "*你的动作靠近了她最私密的区域，而她现在明显不想那里被碰*"
+            if part == "bust":
+                return "*你的动作靠近了她胸前敏感的位置*"
+            if part == "hip":
+                return "*你的手碰到了她腰臀附近*"
+            if part == "crotch":
+                return "*你的动作靠近了她极其私密的区域*"
+            return default_map.get(part, default_map["unknown"])
+                                                                  
+                              
+                        
+                                 
+                                                                  
+        if attitude in ["hurt", "distant", "cold"] or temp_distance >= 40:
+            guarded_map = {
+                "head": "*你试着轻轻摸了摸她的头*",
+                "face": "*你小心地碰了碰她的脸颊*",
+                "hand_right": "*你试着碰了碰她的右手*",
+                "hand_left": "*你轻轻碰到了她的左手*",
+                "belly": "*你碰到了她的腰侧*",
+                "leg": "*你靠近时碰到了她的腿*",
+                "hip": "*你的手碰到了她腰臀附近*",
+                "bust": "*你的动作靠近了她胸前敏感的位置*",
+                "crotch": "*你的动作靠近了她极其私密的区域*",
+                "unknown": "*你轻轻碰了碰她*"
+            }
+                                                   
+                                           
+            return guarded_map.get(part, guarded_map["unknown"])
+
+                                                                      
+                                        
+                                                                      
+        if (
+                stage == "close"
+                or (stage == "trusted" and current_intimacy >= 55)
+                or (highest_stage in ["lovers", "bonded", "married"] and current_intimacy >= 60)
+        ):
+            if part == "head":
+                return "*你温柔地摸了摸她的头*"
+            if part == "face":
+                return "*你轻轻抚过她的脸颊*"
+            if part == "hand_right":
+                return "*你自然地牵起了她的右手*"
+            if part == "hand_left":
+                return "*你轻轻握住了她的左手*"
+            if part == "belly":
+                return "*你轻轻扶住了她的腰*"
+            if part == "leg":
+                return "*你贴近时碰到了她的腿*"
+            return default_map.get(part, default_map["unknown"])
+                                       
+                                       
+                                       
+        if stage in ["lovers", "bonded", "married"] or (
+                highest_stage in ["lovers", "bonded", "married"] and current_intimacy >= 80
+        ):
+            if part == "head":
+                return "*你温柔地摸了摸她的头*"
+            if part == "face":
+                return "*你轻轻抚过她的脸颊*"
+            if part == "hand_right":
+                return "*你自然地牵起了她的右手*"
+            if part == "hand_left":
+                return "*你轻轻握住了她的左手*"
+            if part == "belly":
+                return "*你从身后轻轻环住了她的腰*"
+            if part == "leg":
+                return "*你贴近她时，手碰到了她的腿*"
+
+                                           
+            if part == "hip":
+                if physical >= 4 or "hip" in accepted:
+                    return "*你贴近她，手轻轻落在她腰臀一侧*"
+                return "*你碰到了她的臀侧*"
+
+                                    
+            if part == "bust":
+                if physical >= 5 or "bust" in accepted:
+                    return "*你贴近她时，手触到了她胸前柔软的位置*"
+                return "*你碰到了她胸前敏感的位置*"
+
+                                                  
+            if part == "crotch":
+                if physical >= 5 and first_night:
+                    return "*在彼此早已熟悉的亲密距离里，你碰到了她最私密的地方*"
+                return "*你的动作靠近了她极其私密的区域*"
+
+        return default_map.get(part, default_map["unknown"])
 
     def reset_afk(self):
                                                
@@ -2083,19 +2337,22 @@ class RomashaDesktop(QMainWindow):
             self.touch_temp_locked = True
             self.refresh_touch_state()
 
+            '''
             touch_prompts = {
                 "head": "*你温柔地摸了摸她的头*",
                 "face": "*你轻轻戳了戳她的脸颊*",
                 "bust": "*你不小心碰到了她的胸部*",
                 "belly": "*你搂住了她的腰*",
-                "hip": "*你不小心碰到了她的臀部*",         
-                "crotch": "*你不小心碰到了她的隐私部位*",          
+                "hip": "*你不小心碰到了她的臀部*",  # 两侧的判定
+                "crotch": "*你不小心碰到了她的隐私部位*",  # 正中心的判定
                 "leg": "*你碰到了她的腿*",
-                "hand_right": "*你牵起了她的右手*",          
-                "hand_left": "*你握住了她的左手*",          
+                "hand_right": "*你牵起了她的右手*",  # 对应屏幕左侧
+                "hand_left": "*你握住了她的左手*",  # 对应屏幕右侧
                 "unknown": "*你轻轻碰了碰她*"
             }
             action_text = touch_prompts.get(part, "*你触碰了她*")
+            '''
+            action_text = self.get_touch_prompt(part)
 
                                          
             self.current_context_html = f"<span style='color:#fd92a1; font-size: var(--main-font-size);'>{action_text}</span><br>"
