@@ -31,8 +31,8 @@ CONFIG_FILE = os.path.join(app_dir, "config.json")
 def load_config():
     default_config = {
         "api_type": "openai",                               
-        "api_key": "你的密匙",
-        "base_url": "你的模型接口",
+        "api_key": "sk-BOIfaNR9CVuERB57c",
+        "base_url": "https://api.wataruu.me/v1",
         "target_model": "gpt-5.4",
         "intimacy": 0,                
         "player_name": "",                            
@@ -576,6 +576,15 @@ def stream_chat_with_romasha(user_text, interrupted_text, thread_obj):
     dynamic_system_prompt += f"常驻情绪库（决定互动后的余温）：\n{moods_list_str}\n"
     dynamic_system_prompt += f"瞬间动作库（决定第一反应）：\n{motions_list_str}\n"
     dynamic_system_prompt += f"再次警告：绝不能创造上面四个列表以外的任何标签！"
+    dynamic_system_prompt += """
+        【本轮语言风格附加要求】
+        - 这一次回答时，请优先写出第一反应，不要先做完整解释。
+        - 这一次回答时，请避免使用过于书面、过于完整、过于总结性的句子。
+        - 这一次回答时，请尽量让语言像刚从嘴边出来，而不是像想了很久才整理好的。
+        - 如果当前情绪是紧张、害羞、防备、委屈中的任意一种，优先使用短句、改口、轻微停顿感，而不是完整陈述。
+        - 除非情节非常需要，否则不要直接复述设定词，不要把抽象的人格词直接说出口，而要让它们体现在语气里。
+        - 如果最近几轮已经用过很相似的句式，这一轮请尽量换一种自然表达。
+        """
 
     if interrupted_text:
         injected_user_text = (
